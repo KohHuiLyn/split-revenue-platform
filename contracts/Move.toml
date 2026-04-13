@@ -1,0 +1,12 @@
+[package]
+name = "split_revenue_platform"
+version = "0.1.0"
+publish-at-address = "0x1"
+
+[dependencies]
+AptosStdlib = { local = "../../framework/aptos-framework", subdir = "aptos-stdlib" }
+MoveStdlib = { local = "../../framework/move-stdlib" }
+
+[addresses]
+std = "0x1"
+aptos_framework = "0x1"
