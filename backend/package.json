@@ -1,7 +1,7 @@
 {
-  "name": "split-revenue-platform-backend",
+  "name": "splitr-backend",
   "version": "0.1.0",
-  "description": "Backend service for split-revenue platform on Aptos",
+  "description": "Backend service for Splitr on Aptos",
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
