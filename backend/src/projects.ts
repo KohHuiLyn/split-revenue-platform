@@ -56,7 +56,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Create initial split config
+    // Create initial split config (active by default)
     await db.saveSplitConfig(
       projectId,
       userId,
@@ -64,7 +64,8 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       {
         collaborators: collaborators.map((c: any) => ({ email: c.email, address: c.address })),
         percentages: collaborators.map((c: any) => c.splitPercentage),
-      }
+      },
+      true  // isActive = true for initial split
     );
 
     res.json({

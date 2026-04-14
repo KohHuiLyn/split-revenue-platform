@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Shield, Menu, X } from 'lucide-react';
+import { Shield, Menu, X, Globe } from 'lucide-react';
 
 export function Navigation() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -26,6 +26,10 @@ export function Navigation() {
         <div className="hidden md:flex items-center gap-8">
           {isAuthenticated ? (
             <>
+              <Link href="/explore" className="text-white/70 hover:text-white transition-colors font-medium flex items-center gap-1">
+                <Globe className="w-4 h-4" />
+                Explore
+              </Link>
               <Link href="/dashboard" className="text-white/70 hover:text-white transition-colors font-medium">
                 Dashboard
               </Link>
@@ -41,6 +45,10 @@ export function Navigation() {
             </>
           ) : (
             <>
+              <Link href="/explore" className="text-white/70 hover:text-white transition-colors font-medium flex items-center gap-1">
+                <Globe className="w-4 h-4" />
+                Explore
+              </Link>
               <Link href="#features" className="text-white/70 hover:text-white transition-colors font-medium">
                 How it works
               </Link>
@@ -68,69 +76,85 @@ export function Navigation() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isOpen && (
-        <div className="md:hidden px-6 pb-4 space-y-2 border-t border-white/10">
-          {isAuthenticated ? (
-            <>
-              <Link
-                href="/dashboard"
-                className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/projects"
-                className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                My Projects
-              </Link>
-              <button
-                onClick={() => {
-                  logout();
-                  setIsOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 text-white/70 hover:text-white transition-colors"
-              >
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                href="#features"
-                className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                How it works
-              </Link>
-              <Link
-                href="#use-cases"
-                className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                Features
-              </Link>
-              <Link
-                href="/login"
-                className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/signup"
-                className="block px-3 py-2 bg-gradient-to-r from-[#00d4ff] to-[#0099ff] rounded-lg text-white font-medium text-center"
-                onClick={() => setIsOpen(false)}
-              >
-                Get started
-              </Link>
-            </>
-          )}
-        </div>
-      )}
+{/* Mobile Menu */}
+        {isOpen && (
+          <div className="md:hidden px-6 pb-4 space-y-2 border-t border-white/10">
+            {isAuthenticated ? (
+              <>
+                <Link
+                  href="/explore"
+                  className="block px-3 py-2 text-white/70 hover:text-white transition-colors flex items-center gap-2"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Globe className="w-4 h-4" />
+                  Explore
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  href="/projects"
+                  className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
+                  onClick={() => setIsOpen(false)}
+                >
+                  My Projects
+                </Link>
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-white/70 hover:text-white transition-colors"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/explore"
+                  className="block px-3 py-2 text-white/70 hover:text-white transition-colors flex items-center gap-2"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Globe className="w-4 h-4" />
+                  Explore
+                </Link>
+                <Link
+                  href="#features"
+                  className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
+                  onClick={() => setIsOpen(false)}
+                >
+                  How it works
+                </Link>
+                <Link
+                  href="#use-cases"
+                  className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Features
+                </Link>
+                <Link
+                  href="/login"
+                  className="block px-3 py-2 text-white/70 hover:text-white transition-colors"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="block px-3 py-2 bg-gradient-to-r from-[#00d4ff] to-[#0099ff] rounded-lg text-white font-medium text-center"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Get started
+                </Link>
+              </>
+            )}
+          </div>
+        )}
     </nav>
   );
 }

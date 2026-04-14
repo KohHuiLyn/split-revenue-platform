@@ -76,6 +76,19 @@ CREATE TABLE split_configs (
 CREATE INDEX idx_split_configs_project_id ON split_configs(project_id);
 CREATE INDEX idx_split_configs_is_active ON split_configs(is_active);
 
+-- Split config approvals (tracks multi-sig approval)
+CREATE TABLE split_config_approvals (
+    id SERIAL PRIMARY KEY,
+    split_config_id INT NOT NULL REFERENCES split_configs(id) ON DELETE CASCADE,
+    collaborator_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    approved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(split_config_id, collaborator_id)
+);
+
+CREATE INDEX idx_split_config_approvals_split_config_id ON split_config_approvals(split_config_id);
+CREATE INDEX idx_split_config_approvals_collaborator_id ON split_config_approvals(collaborator_id);
+
 -- Customers table (tracks who bought from projects)
 CREATE TABLE customers (
     id SERIAL PRIMARY KEY,

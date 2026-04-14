@@ -31,6 +31,20 @@ interface Collaborator {
   earned: number;
   status: string;
 }
+interface SplitProposal {
+  id: number;
+  version: number;
+  configData: string | any;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdByName?: string;
+  created_by_id?: number;
+  totalCollaborators?: number;
+  approvalCount?: number;
+  approvals?: Array<{ collaborator_id: number; collaborator_name?: string; approved_at: string }>;
+}
+
 interface ProjectData {
   id: number;
   name: string;
@@ -44,6 +58,7 @@ interface ProjectData {
   collaborators: Collaborator[];
   recentTransactions: any[];
   createdAt: string;
+  pendingSplits?: SplitProposal[];
 }
 
 export default function ProjectDetail() {
@@ -55,14 +70,21 @@ export default function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
-    const [depositOpen, setDepositOpen] = useState(false);
-    const [depositAmount, setDepositAmount] = useState('');
-    const [depositLoading, setDepositLoading] = useState(false);
-    const [depositError, setDepositError] = useState('');
-    const [depositSuccess, setDepositSuccess] = useState('');
-    const [distributeLoading, setDistributeLoading] = useState(false);
-    const [distributeError, setDistributeError] = useState('');
-    const [distributeSuccess, setDistributeSuccess] = useState('');
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [depositError, setDepositError] = useState('');
+  const [depositSuccess, setDepositSuccess] = useState('');
+  const [distributeLoading, setDistributeLoading] = useState(false);
+  const [distributeError, setDistributeError] = useState('');
+  const [distributeSuccess, setDistributeSuccess] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingSplits, setEditingSplits] = useState<{[key: number]: number}>({});
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsSuccess, setSettingsSuccess] = useState('');
+  const [pendingSplits, setPendingSplits] = useState<SplitProposal[]>([]);
+  const [approvingConfigId, setApprovingConfigId] = useState<number | null>(null);
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
@@ -77,6 +99,26 @@ export default function ProjectDetail() {
         
         // Transform API response to match UI structure
         const data = response.data;
+        
+        // Update collaborators with current split percentages if available
+        let collaborators = data.collaborators || [];
+        if (data.currentSplitConfig?.config_data) {
+          try {
+            const configData = typeof data.currentSplitConfig.config_data === 'string'
+              ? JSON.parse(data.currentSplitConfig.config_data)
+              : data.currentSplitConfig.config_data;
+            
+            if (configData.percentages && Array.isArray(configData.percentages)) {
+              collaborators = collaborators.map((collab: any, index: number) => ({
+                ...collab,
+                percentage: configData.percentages[index] || collab.percentage,
+              }));
+            }
+          } catch (e) {
+            console.warn('Failed to parse split config:', e);
+          }
+        }
+        
         setProjectData({
           id: data.id,
           name: data.name,
@@ -87,11 +129,14 @@ export default function ProjectDetail() {
           contractAddress: data.contractAddress || '0x742d35Cc6634C0532925a...',
           network: 'Aptos Mainnet',
           lastDistribution: data.lastDistribution || 'N/A',
-          collaborators: data.collaborators || [],
+          collaborators: collaborators,
           recentTransactions: data.recentTransactions || [],
           createdAt: data.createdAt,
         });
-        console.log(JSON.stringify(data))
+        console.log(JSON.stringify(data));
+        
+        // Fetch split history to find pending proposals
+        await fetchSplitHistory(Number(id));
       } catch (err: any) {
         console.error('Failed to fetch project:', err);
         setError(err.response?.data?.message || 'Failed to load project details');
@@ -100,6 +145,46 @@ export default function ProjectDetail() {
       }
     };
 
+const fetchSplitHistory = async (projectId: number) => {
+  try {
+    const [historyResponse, currentResponse] = await Promise.all([
+      api.splits.getHistory(projectId),
+      api.splits.getCurrent(projectId),
+    ]);
+
+    const history = historyResponse.data?.history || historyResponse.data || [];
+    const current = currentResponse.data || null;
+
+    console.log('Split history response:', history);
+    console.log('Current split response:', current);
+
+    let pending: any[] = [];
+
+    if (current?.createdAt) {
+      const currentCreatedAt = new Date(current.createdAt).getTime();
+
+      pending = history
+        .filter((split: any) => {
+          const splitCreatedAt = new Date(split.createdAt).getTime();
+
+          return (
+            !split.isActive &&
+            split.id &&
+            splitCreatedAt > currentCreatedAt
+          );
+        })
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+    }
+
+    setPendingSplits(pending.length > 0 ? [pending[0]] : []);
+  } catch (err: any) {
+    console.error('Failed to fetch split history:', err);
+    setPendingSplits([]);
+  }
+};
   useEffect(() => {
     if (!id) return;
     fetchProjectData();
@@ -176,6 +261,97 @@ const handleDepositFunds = async () => {
     setDepositLoading(false);
   }
 };
+
+const handleOpenSettings = () => {
+  if (!projectData) return;
+  
+  // Initialize edit state with current splits
+  const splits: {[key: number]: number} = {};
+  projectData.collaborators.forEach(collab => {
+    splits[collab.id] = collab.percentage;
+  });
+  
+  setEditingSplits(splits);
+  setSettingsOpen(true);
+  setSettingsError('');
+  setSettingsSuccess('');
+};
+
+const handleProposeSplit = async () => {
+  if (!id || !projectData) return;
+
+  setSettingsError('');
+  setSettingsSuccess('');
+
+  // Validate that splits add up to 100
+  const total = Object.values(editingSplits).reduce((sum, val) => sum + val, 0);
+  if (Math.abs(total - 100) > 0.01) {
+    setSettingsError(`Splits must total 100%. Current total: ${total.toFixed(2)}%`);
+    return;
+  }
+
+  // Validate no negative values
+  if (Object.values(editingSplits).some(val => val < 0)) {
+    setSettingsError('Percentages cannot be negative');
+    return;
+  }
+
+  try {
+    setSettingsLoading(true);
+    const collaborators = projectData.collaborators.map(collab => ({
+    collaboratorId: collab.collaboratorId || collab.id,
+    email: collab.email,
+    }));
+
+    const percentages = projectData.collaborators.map(
+    collab => editingSplits[collab.id]
+    );
+
+    await api.splits.propose(Number(id), {
+    collaborators,
+    percentages,
+    });
+
+    setSettingsSuccess('Split proposal submitted successfully');
+
+    await fetchProjectData();
+    await fetchSplitHistory(Number(id));
+
+    setTimeout(() => {
+      setSettingsOpen(false);
+      setSettingsSuccess('');
+    }, 1000);
+  } catch (err: any) {
+    console.error('Split proposal failed:', err);
+    setSettingsError(err.response?.data?.error || 'Failed to propose split');
+  } finally {
+    setSettingsLoading(false);
+  }
+};
+
+const handleSplitChange = (collabId: number, newPercentage: number) => {
+  setEditingSplits(prev => ({
+    ...prev,
+    [collabId]: newPercentage,
+  }));
+};
+
+const handleApproveSplit = async (configId: number) => {
+  if (!id) return;
+
+  try {
+    setApprovingConfigId(configId);
+    await api.splits.approve(Number(id), configId);
+    setSettingsSuccess('Split proposal approved!');
+    await fetchProjectData();
+    await fetchSplitHistory(Number(id));
+  } catch (err: any) {
+    console.error('Approval failed:', err);
+    setSettingsError(err.response?.data?.error || 'Failed to approve split');
+  } finally {
+    setApprovingConfigId(null);
+  }
+};
   if (!isAuthenticated) return null;
 
   if (loading) {
@@ -240,7 +416,9 @@ const handleDepositFunds = async () => {
           </div>
 
           <div className="flex gap-3">
-            <button className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all font-medium flex items-center gap-2">
+            <button 
+              onClick={handleOpenSettings}
+              className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all font-medium flex items-center gap-2">
               <Settings className="w-4 h-4" />
               Settings
             </button>
@@ -342,12 +520,105 @@ const handleDepositFunds = async () => {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Collaborators */}
+            <>
+            <div className="grid lg:grid-cols-2 gap-6">
+            {/* Pending Revenue Split (shows above if proposal exists) */}
+            {pendingSplits.length > 0 && pendingSplits[0] && (
+              <div className="lg:col-span-2 bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 backdrop-blur-sm border border-yellow-500/40 rounded-xl p-6">
+                <h3 className="font-display text-xl font-bold mb-2 flex items-center gap-2 text-yellow-400">
+                  <Clock className="w-5 h-5" />
+                  Pending Revenue Split Proposal
+                </h3>
+                
+                {/* Approval Progress */}
+                <div className="mb-6 p-3 bg-black/20 rounded-lg">
+                  <div className="text-sm text-yellow-300 font-semibold mb-2">
+                    Approvals: {pendingSplits[0]?.approvalCount || 0} / {pendingSplits[0]?.totalCollaborators || 0}
+                  </div>
+                  <div className="w-full bg-white/10 rounded-full h-2">
+                    <div 
+                      className="bg-yellow-400 h-2 rounded-full transition-all"
+                      style={{ 
+                        width: `${((pendingSplits[0]?.approvalCount || 0) / (pendingSplits[0]?.totalCollaborators || 1)) * 100}%` 
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Approved by list */}
+                  {pendingSplits[0]?.approvals && pendingSplits[0].approvals.length > 0 && (
+                    <div className="mt-3 text-xs text-white/60 space-y-1">
+                      {pendingSplits[0].approvals.map((approval: any) => (
+                        <div key={approval.collaborator_id} className="flex items-center gap-2">
+                          <Check className="w-3 h-3 text-green-400" />
+                          Approved by {approval.collaborator_name || approval.collaborator_id}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Proposed Changes */}
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                  {projectData?.collaborators.map((collab, collabIndex) => {
+                    const proposal = pendingSplits[0];
+                    let configData: any = {};
+                    try {
+                      configData = typeof proposal.configData === 'string'
+                        ? JSON.parse(proposal.configData)
+                        : proposal.configData;
+                    } catch (e) {}
+
+                    const proposedPercentage = configData?.percentages?.[collabIndex] ?? collab.percentage;
+                    const changed = proposedPercentage !== collab.percentage;
+
+                    return (
+                      <div 
+                        key={collab.id} 
+                        className={`p-4 rounded-lg border ${
+                          changed 
+                            ? 'bg-yellow-500/10 border-yellow-400/50' 
+                            : 'bg-white/5 border-white/10'
+                        }`}
+                      >
+                        <div className="text-sm text-white/70 mb-2">{collab.name}</div>
+                        <div className="flex items-baseline gap-2 mb-2">
+                          <div className="text-3xl font-display font-bold text-yellow-300">{proposedPercentage}%</div>
+                          {changed && (
+                            <div className="text-xs text-yellow-400">
+                              ← {collab.percentage}%
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Approve Button - show only if user hasn't approved yet */}
+                {pendingSplits[0] && !pendingSplits[0]?.approvals?.some((a: any) => a.collaborator_id === user?.id) ? (
+                  <button
+                    onClick={() => handleApproveSplit(pendingSplits[0].id)}
+                    disabled={approvingConfigId === pendingSplits[0].id}
+                    className="w-full px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    {approvingConfigId === pendingSplits[0].id ? 'Approving...' : 'Approve Split'}
+                  </button>
+                ) : (
+                  <div className="w-full px-6 py-3 bg-green-500/20 text-green-300 rounded-lg font-semibold flex items-center justify-center gap-2">
+                    <Check className="w-4 h-4" />
+                    ✓ You approved this split
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Current Revenue Split - Hide if pending split exists */}
+            {!(pendingSplits.length > 0) && (
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
               <h3 className="font-display text-xl font-bold mb-6 flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Revenue Split
+                Current Revenue Split
               </h3>
               <div className="space-y-4">
                 {projectData.collaborators.length > 0 ? (
@@ -402,8 +673,9 @@ const handleDepositFunds = async () => {
                 )}
               </div>
             </div>
+            )}
 
-            {/* Vault Info */}
+            {/* Vault Info - always show */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
               <h3 className="font-display text-xl font-bold mb-6">Vault Information</h3>
               <div className="space-y-4">
@@ -451,6 +723,7 @@ const handleDepositFunds = async () => {
               </div>
             </div>
           </div>
+            </>
         )}
 
         {activeTab === 'transactions' && (
@@ -572,6 +845,89 @@ const handleDepositFunds = async () => {
           className="flex-1 rounded-xl bg-gradient-to-r from-[#00d4ff] to-[#0099ff] px-4 py-3 font-semibold text-white disabled:opacity-50"
         >
           {depositLoading ? 'Depositing...' : 'Confirm Deposit'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+      {settingsOpen && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6">
+    <div className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0f1435] p-6 shadow-2xl">
+      <h3 className="font-display text-2xl font-bold mb-2 sticky top-0 bg-[#0f1435] pt-0 pb-4">Revenue Split Settings</h3>
+      <p className="text-white/60 mb-6 sticky top-12 bg-[#0f1435]">
+        Adjust the revenue split percentages for collaborators.
+      </p>
+
+      {settingsError && (
+        <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {settingsError}
+        </div>
+      )}
+
+      {settingsSuccess && (
+        <div className="mb-4 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300">
+          {settingsSuccess}
+        </div>
+      )}
+
+      <div className="mb-6 space-y-4">
+        {projectData?.collaborators.map((collab) => (
+          <div key={collab.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="font-semibold">{collab.name}</div>
+                <div className="text-sm text-white/50">{collab.email}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={editingSplits[collab.id] || 0}
+                onChange={(e) => handleSplitChange(collab.id, parseFloat(e.target.value) || 0)}
+                className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-[#00d4ff]/60"
+              />
+              <span className="text-white/70 font-semibold min-w-12">%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mb-4 p-4 bg-white/5 border border-white/10 rounded-xl">
+        <div className="flex items-center justify-between">
+          <span className="text-white/70">Total Percentage</span>
+          <span className={`font-display text-2xl font-bold ${
+            Math.abs(Object.values(editingSplits).reduce((sum, val) => sum + val, 0) - 100) < 0.01
+              ? 'text-green-400'
+              : 'text-red-400'
+          }`}>
+            {Object.values(editingSplits).reduce((sum, val) => sum + val, 0).toFixed(1)}%
+          </span>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <button
+          onClick={() => {
+            setSettingsOpen(false);
+            setEditingSplits({});
+            setSettingsError('');
+            setSettingsSuccess('');
+          }}
+          className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-medium text-white/80 hover:bg-white/10"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={handleProposeSplit}
+          disabled={settingsLoading}
+          className="flex-1 rounded-xl bg-gradient-to-r from-[#00d4ff] to-[#0099ff] px-4 py-3 font-semibold text-white disabled:opacity-50"
+        >
+          {settingsLoading ? 'Proposing...' : 'Propose Split'}
         </button>
       </div>
     </div>

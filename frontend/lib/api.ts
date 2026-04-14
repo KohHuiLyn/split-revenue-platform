@@ -134,4 +134,14 @@ export const api = {
     requestFaucet: () => apiClient.post('/api/wallet/request-faucet', {}),
     getTransactions: () => apiClient.get('/api/wallet/transactions'),
   },
+
+  // Public marketplace
+  public: {
+    getProjects: (limit?: number, offset?: number) =>
+      apiClient.get('/api/public/projects', {
+        params: { limit, offset },
+      }),
+    getProjectById: (id: number) =>
+      apiClient.get(`/api/public/projects/${id}`),
+  },
 };
