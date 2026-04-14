@@ -654,19 +654,21 @@ const handleApproveSplit = async (configId: number) => {
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-display text-2xl font-bold text-[#00d4ff]">
-                            {collab.percentage}%
+                        <div>
+                          <div className="text-right">
+                            <div className="font-display text-2xl font-bold text-[#00d4ff]">
+                              {collab.percentage}%
+                            </div>
                           </div>
+                          {collab.collaboratorId === user?.id && collab.status !== 'approved' && (
+                            <button
+                              onClick={() => handleApprove(collab.collaboratorId!)}
+                              className="mt-2 px-3 py-1 text-xs bg-[#00d4ff] text-black rounded-lg hover:bg-[#00e5ff]"
+                            >
+                              Approve
+                            </button>
+                          )}
                         </div>
-                        {collab.collaboratorId === user?.id && collab.status !== 'approved' && (
-                        <button
-                            onClick={() => handleApprove(collab.collaboratorId!)}
-                            className="mt-2 px-3 py-1 text-xs bg-[#00d4ff] text-black rounded-lg hover:bg-[#00e5ff]"
-                        >
-                            Join
-                        </button>
-                        )}
                       </div>
                       <div className="pt-3 border-t border-white/10 flex items-center justify-between text-sm">
                         <span className="text-white/50">Total Earned</span>
