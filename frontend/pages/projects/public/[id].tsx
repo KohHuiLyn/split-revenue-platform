@@ -18,6 +18,7 @@ import {
   UserPlus,
   Check,
   ArrowRight,
+  Heart,
 } from 'lucide-react';
 
 interface ProjectData {
@@ -72,6 +73,18 @@ export default function PublicProject() {
 
   const handleManageProject = () => {
     router.push(`/projects/${id}`);
+  };
+
+  const handleFundProject = () => {
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+    // Redirect to payment/funding page with project details
+    router.push({
+      pathname: '/payment',
+      query: { projectId: project.id, projectName: project.name },
+    });
   };
 
   const isOwner = user && project && (
@@ -163,14 +176,26 @@ export default function PublicProject() {
                 Manage Project
               </button>
             ) : (
-              <button
-                onClick={handleJoinProject}
-                className="px-6 py-3 bg-gradient-to-r from-[#00d4ff] to-[#0099ff] hover:from-[#00e5ff] hover:to-[#00aaff] rounded-xl font-semibold flex items-center gap-2 shadow-[0_0_30px_rgba(0,212,255,0.3)]"
-              >
-                <UserPlus className="w-5 h-5" />
-                Join Project
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleJoinProject}
+                  className="px-6 py-3 bg-gradient-to-r from-[#00d4ff] to-[#0099ff] hover:from-[#00e5ff] hover:to-[#00aaff] rounded-xl font-semibold flex items-center gap-2 shadow-[0_0_30px_rgba(0,212,255,0.3)]"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  Join Project
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                {isAuthenticated && (
+                  <button
+                    onClick={handleFundProject}
+                    className="px-6 py-3 bg-gradient-to-r from-[#9b4dca] to-[#00d4ff] hover:from-[#b366e0] hover:to-[#00e5ff] rounded-xl font-semibold flex items-center gap-2 shadow-[0_0_30px_rgba(155,77,202,0.3)]"
+                  >
+                    <Heart className="w-5 h-5" />
+                    Fund Project
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </motion.div>
@@ -283,12 +308,21 @@ export default function PublicProject() {
             <p className="text-white/60 mb-6 max-w-lg mx-auto">
               Request to join this project and become a collaborator.
             </p>
-            <button
-              onClick={handleJoinProject}
-              className="px-6 py-3 bg-gradient-to-r from-[#00d4ff] to-[#0099ff] hover:from-[#00e5ff] hover:to-[#00aaff] rounded-xl font-semibold shadow-[0_0_30px_rgba(0,212,255,0.3)]"
-            >
-              Request to Join
-            </button>
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={handleJoinProject}
+                className="px-6 py-3 bg-gradient-to-r from-[#00d4ff] to-[#0099ff] hover:from-[#00e5ff] hover:to-[#00aaff] rounded-xl font-semibold shadow-[0_0_30px_rgba(0,212,255,0.3)]"
+              >
+                Request to Join
+              </button>
+              <button
+                onClick={handleFundProject}
+                className="px-6 py-3 bg-gradient-to-r from-[#9b4dca] to-[#00d4ff] hover:from-[#b366e0] hover:to-[#00e5ff] rounded-xl font-semibold flex items-center gap-2 shadow-[0_0_30px_rgba(155,77,202,0.3)]"
+              >
+                <Heart className="w-5 h-5" />
+                Fund Project
+              </button>
+            </div>
           </motion.div>
         )}
       </div>
