@@ -52,7 +52,7 @@ export default function LoginPage() {
           Sign In
         </h1>
         <p className="text-center text-gray-600 mb-8">
-          Welcome back to Split Revenue
+          Welcome back to Splitr
         </p>
 
         <div className="bg-white py-8 px-6 shadow rounded-lg sm:px-10">

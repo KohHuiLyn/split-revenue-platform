@@ -44,7 +44,7 @@ const authMiddleware = (req: any, res: any, next: any) => {
 // Initialize services
 async function bootstrap() {
   try {
-    console.log("🚀 Initializing Split Revenue Platform...");
+    console.log("🚀 Initializing Splitr...");
 
     // Initialize database
     console.log("📦 Connecting to database...");

@@ -125,7 +125,7 @@ export default function WalletTestPage() {
       {/* Navigation */}
       <nav className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-primary">Split Revenue</h1>
+          <h1 className="text-2xl font-bold text-primary">Splitr</h1>
           <div className="flex items-center gap-4">
             <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
               Dashboard

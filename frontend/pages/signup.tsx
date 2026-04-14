@@ -74,7 +74,7 @@ export default function SignupPage() {
           Create Account
         </h1>
         <p className="text-center text-gray-600 mb-8">
-          Join Split Revenue today
+          Join Splitr today
         </p>
 
         <div className="bg-white py-8 px-6 shadow rounded-lg sm:px-10">
