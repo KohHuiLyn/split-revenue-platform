@@ -60,7 +60,7 @@ export default function WalletTestPage() {
     try {
       const infoResponse = await api.wallet.getInfo();
       setWalletInfo(infoResponse.data);
-      
+
       // Only load transactions if account is on-chain
       if (infoResponse.data.wallet?.onChain) {
         try {
@@ -88,9 +88,6 @@ export default function WalletTestPage() {
       // Request Mock USDC for testing
       const response = await api.wallet.requestMockUsdc();
       setSuccess(`✅ ${response.data.message}`);
-      setSuccessNote(
-        'Next step: Deploy the mock_usdc Move module to testnet, then the actual USDC will be minted to your wallet.'
-      );
 
       // Reload wallet info after 3 seconds
       setTimeout(() => {
@@ -249,31 +246,19 @@ export default function WalletTestPage() {
                 </div>
               )}
 
-              {/* Mock USDC Button */}
-              <button
-                onClick={handleRequestFaucet}
-                disabled={faucetLoading}
-                className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-50 transition flex items-center justify-center gap-2"
+              {/* Circle Faucet Link */}
+              <a
+                href="https://faucet.circle.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
               >
-                {faucetLoading ? (
-                  <>
-                    <Loader size={20} className="animate-spin" />
-                    Preparing Mock USDC...
-                  </>
-                ) : (
-                  <>💰 Request 100 Mock USDC for Testing</>
-                )}
-              </button>
+                Get 20 USDC from faucet
+                <ExternalLink size={20} />
+              </a>
               <p className="text-xs text-gray-500 mt-2">
-                * Mock USDC is a test token for development. Deploy mock_usdc.move to activate.
+                * Click to open Circle's testnet faucet in a new tab. Request USDC, then return here and refresh your balance.
               </p>
-
-              {/* Success Note */}
-              {successNote && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-blue-700 text-sm">{successNote}</p>
-                </div>
-              )}
             </div>
 
             {/* Transaction History */}
