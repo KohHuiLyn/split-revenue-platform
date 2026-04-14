@@ -96,21 +96,6 @@ export default function WalletTestPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-primary">Splitr</h1>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
-              Dashboard
-            </Link>
-            <Link href="/wallet-test" className="text-primary font-semibold">
-              Wallet Test
-            </Link>
-          </div>
-        </div>
-      </nav>
-
       <div className="max-w-6xl mx-auto px-4 py-8">
         <h2 className="text-3xl font-bold mb-8">Wallet Testing Dashboard</h2>
 
@@ -230,7 +215,7 @@ export default function WalletTestPage() {
                 rel="noopener noreferrer"
                 className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
               >
-                Get 100 USDC from Circle faucet
+                Get 20 USDC from Circle faucet
                 <ExternalLink size={20} />
               </a>
               <p className="text-xs text-gray-500 mt-2">
