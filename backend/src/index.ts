@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 // Load environment variables FIRST - before any other imports
 dotenv.config();
 
-import { initializeDatabase } from "./database";
+import { initializeDatabase, createProject, getProjectsByUserId, addCollaborator, getUserByEmail } from "./database";
 import { initializeAptosClient } from "./aptos-client";
 import authRoutes from "./auth";
 import walletRoutes from "./wallet-info";
@@ -47,7 +47,7 @@ const authMiddleware = (req: any, res: any, next: any) => {
 // Initialize services
 async function bootstrap() {
   try {
-    console.log("🚀 Initializing Split Revenue Platform...");
+    console.log("🚀 Initializing Splitr...");
 
     // Initialize database
     console.log("📦 Connecting to database...");
