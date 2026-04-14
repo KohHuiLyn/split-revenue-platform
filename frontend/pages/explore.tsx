@@ -51,7 +51,7 @@ export default function Explore() {
   );
 
   const handleViewProject = (projectId: number) => {
-    router.push(`/projects/public/${projectId}`);
+    router.push(`/projects/${projectId}`);
   };
 
   return (
