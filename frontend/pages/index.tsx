@@ -29,9 +29,9 @@ export default function Home() {
                 <div className="w-2 h-2 bg-[#00d4ff] rounded-full animate-pulse" />
                 <span className="text-sm font-medium text-white/80">Trusted by 2,400+ creator teams</span>
               </div>
-
-              <h1 className="font-['Epilogue'] text-6xl md:text-7xl font-bold leading-[1.1] tracking-tight">
-                Revenue splitting
+    
+                <h1 className="font-display text-6xl md:text-7xl font-bold leading-[1.1] tracking-tight">
+                 Revenue splitting
                 <br />
                 <span className="bg-gradient-to-r from-[#00d4ff] via-[#0099ff] to-[#ff6b4a] bg-clip-text text-transparent">
                   without trust
@@ -110,7 +110,7 @@ export default function Home() {
           <div id="use-cases" className="pt-32">
             <div className="text-center mb-12">
               <p className="text-white/50 uppercase tracking-wider text-sm font-semibold mb-2">Trusted by</p>
-              <h2 className="font-['Epilogue'] text-3xl font-bold">Creator teams across industries</h2>
+              <h2 className="font-display text-3xl font-bold">Creator teams across industries</h2>
             </div>
             <div className="grid md:grid-cols-4 gap-6">
               {[

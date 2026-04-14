@@ -17,8 +17,8 @@ export function Navigation() {
           <div className="w-10 h-10 bg-gradient-to-br from-[#00d4ff] to-[#0099ff] rounded-lg flex items-center justify-center">
             <Shield className="w-6 h-6 text-white" />
           </div>
-          <Link href="/" className="font-['Epilogue'] text-xl font-bold tracking-tight text-white">
-            SplitVault
+          <Link href="/" className="font-display text-xl font-bold tracking-tight text-white">
+            SplitR
           </Link>
         </div>
 
