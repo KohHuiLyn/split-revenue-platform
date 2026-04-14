@@ -30,7 +30,7 @@ interface Transaction {
 
 export default function WalletTestPage() {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,10 +42,10 @@ export default function WalletTestPage() {
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   // Load wallet info
   useEffect(() => {
