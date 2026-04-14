@@ -694,3 +694,31 @@ export async function getUserPayoutHistory(userId: number, limit: number = 50, o
   `;
   return result;
 }
+
+/**
+ * Public project listing - for marketplace/explore page
+ * Returns all active projects with public-facing info
+ */
+export async function getPublicProjects(limit: number = 50, offset: number = 0) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 
+      p.id,
+      p.name,
+      p.description,
+      p.cover_image_url,
+      p.price_display_usd,
+      p.is_active,
+      p.created_at,
+      u.display_name as creator_name,
+      u.profile_picture_url as creator_avatar,
+      (SELECT COUNT(*) FROM project_collaborators WHERE project_id = p.id) as collaborator_count,
+      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro
+    FROM projects p
+    LEFT JOIN users u ON p.creator_id = u.id
+    WHERE p.is_active = true
+    ORDER BY p.created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+  return result;
+}
