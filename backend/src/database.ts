@@ -59,6 +59,16 @@ export async function getUserByEmail(email: string) {
   return result[0] || null;
 }
 
+export async function getUserById(userId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT id, email, wallet_address, wallet_private_key_encrypted, display_name, created_at
+    FROM users
+    WHERE id = ${userId}
+  `;
+  return result[0] || null;
+}
+
 /**
  * Search users by email (partial match)
  */
