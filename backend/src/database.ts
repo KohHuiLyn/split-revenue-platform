@@ -461,12 +461,13 @@ export async function saveSplitConfig(
   projectId: number,
   createdById: number,
   onChainConfigVersion: number,
-  configData: any
+  configData: any,
+  isActive: boolean = false
 ) {
   const db_instance = getDb();
   const result = await db_instance`
-    INSERT INTO split_configs (project_id, on_chain_config_version, config_data, created_by_id)
-    VALUES (${projectId}, ${onChainConfigVersion}, ${JSON.stringify(configData)}, ${createdById})
+    INSERT INTO split_configs (project_id, on_chain_config_version, config_data, created_by_id, is_active)
+    VALUES (${projectId}, ${onChainConfigVersion}, ${JSON.stringify(configData)}, ${createdById}, ${isActive})
     RETURNING id, on_chain_config_version, created_at
   `;
   return result[0];
@@ -513,6 +514,102 @@ export async function activateSplitConfig(projectId: number, configId: number) {
     RETURNING *
   `;
   return result[0];
+}
+
+export async function approveSplitConfig(splitConfigId: number, collaboratorId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    INSERT INTO split_config_approvals (split_config_id, collaborator_id, approved_at)
+    VALUES (${splitConfigId}, ${collaboratorId}, CURRENT_TIMESTAMP)
+    ON CONFLICT (split_config_id, collaborator_id) DO UPDATE
+    SET approved_at = CURRENT_TIMESTAMP
+    RETURNING *
+  `;
+  return result[0];
+}
+
+export async function getSplitConfigApprovals(splitConfigId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT sca.*, u.display_name as collaborator_name, u.email
+    FROM split_config_approvals sca
+    LEFT JOIN users u ON sca.collaborator_id = u.id
+    WHERE sca.split_config_id = ${splitConfigId}
+  `;
+  return result;
+}
+
+export async function checkIfAllApproved(projectId: number, splitConfigId: number) {
+  const db_instance = getDb();
+  
+  // Get total collaborators (excluding removed ones)
+  const totalCollaborators = await db_instance`
+    SELECT COUNT(*) as count FROM project_collaborators 
+    WHERE project_id = ${projectId} AND status != 'removed'
+  `;
+  
+  // Get approvals for this split
+  const approvals = await db_instance`
+    SELECT COUNT(*) as count FROM split_config_approvals 
+    WHERE split_config_id = ${splitConfigId}
+  `;
+  
+  const totalCount = totalCollaborators[0]?.count || 0;
+  const approvalCount = approvals[0]?.count || 0;
+  
+  console.log(`Checking approvals: ${approvalCount}/${totalCount} approved`);
+  
+  return totalCount > 0 && approvalCount === totalCount;
+}
+
+
+export async function getPendingSplitWithApprovals(projectId: number) {
+  const db_instance = getDb();
+  
+  // Get pending split (not active, most recent)
+  const pendingSplit = await db_instance`
+    SELECT 
+      sc.id,
+      sc.on_chain_config_version as version,
+      sc.config_data,
+      sc.is_active,
+      u.display_name as created_by_name,
+      u.id as created_by_id,
+      sc.created_at,
+      sc.updated_at
+    FROM split_configs sc
+    LEFT JOIN users u ON sc.created_by_id = u.id
+    WHERE sc.project_id = ${projectId} AND sc.is_active = false
+    ORDER BY sc.created_at DESC 
+    LIMIT 1
+  `;
+  
+  if (!pendingSplit || pendingSplit.length === 0) {
+    return null;
+  }
+  
+  const split = pendingSplit[0];
+  
+  // Get all collaborators
+  const allCollaborators = await db_instance`
+    SELECT id FROM project_collaborators 
+    WHERE project_id = ${projectId} AND status = 'accepted'
+  `;
+  
+  // Get approvals for this split
+  const approvals = await db_instance`
+    SELECT collaborator_id, approved_at FROM split_config_approvals 
+    WHERE split_config_id = ${split.id}
+  `;
+  
+  const approvalSet = new Set(approvals.map((a: any) => a.collaborator_id));
+  
+  return {
+    ...split,
+    totalCollaborators: allCollaborators.length,
+    approvalCount: approvals.length,
+    approvals: approvals,
+  };
 }
 
 /**

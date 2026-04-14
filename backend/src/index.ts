@@ -72,7 +72,7 @@ async function bootstrap() {
     app.use("/api/projects", authMiddleware, projectRoutes);
 
     // Splits routes (protected)
-    app.use("/api/projects/:projectId/splits", authMiddleware, splitsRoutes);
+    app.use("/api/projects", authMiddleware, splitsRoutes);
 
     // Payouts routes (protected)
     app.use("/api/projects", authMiddleware, payoutsRoutes);

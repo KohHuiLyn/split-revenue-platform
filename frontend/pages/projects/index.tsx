@@ -264,7 +264,7 @@ export default function ProjectsList() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2">
+                  {/* <div className="flex gap-2">
                     <button
                       onClick={() => handleViewProject(project.id)}
                       className="flex-1 py-2 bg-[#00d4ff]/20 hover:bg-[#00d4ff]/30 text-[#00d4ff] rounded-lg font-semibold transition-all"
@@ -277,7 +277,7 @@ export default function ProjectsList() {
                     >
                       Manage
                     </button>
-                  </div>
+                  </div> */}
                 </div>
               </motion.div>
             ))}

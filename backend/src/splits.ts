@@ -48,18 +48,40 @@ router.get('/:projectId/splits/current', async (req: AuthRequest, res: Response)
 router.get('/:projectId/splits/history', async (req: AuthRequest, res: Response) => {
   try {
     const { projectId } = req.params;
+    const projectIdNum = parseInt(projectId);
 
-    const result = await db.getSplitConfigHistory(parseInt(projectId));
+    const result = await db.getSplitConfigHistory(projectIdNum);
 
-    const history = result.map((row: any) => ({
-      id: row.id,
-      version: row.version,
-      configData: row.config_data,
-      isActive: row.is_active,
-      createdByName: row.created_by_name,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    // Get total collaborators for this project
+    const collaboratorsResult = await db.getProjectCollaboratorsDetail(projectIdNum);
+    const totalCollaborators = collaboratorsResult.filter(
+    (c: any) =>
+        c.status !== 'removed' &&
+        (c.status === 'approved' || c.status === 'accepted')
+    ).length;
+
+    // Enrich each split with approval data
+    const history = await Promise.all(
+      result.map(async (row: any) => {
+        const approvals = await db.getSplitConfigApprovals(row.id);
+        return {
+          id: row.id,
+          version: row.version,
+          configData: row.config_data,
+          isActive: row.is_active,
+          createdByName: row.created_by_name,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          totalCollaborators,
+          approvalCount: approvals.length,
+          approvals: approvals.map((a: any) => ({
+            collaborator_id: a.collaborator_id,
+            collaborator_name: a.collaborator_name,
+            approved_at: a.approved_at,
+          })),
+        };
+      })
+    );
 
     res.json({ projectId, history });
   } catch (error: any) {
@@ -97,13 +119,17 @@ router.post('/:projectId/splits/propose', async (req: AuthRequest, res: Response
       return res.status(403).json({ error: 'User is not a collaborator' });
     }
 
-    // Create split config
+    // Create split config (not active yet)
     const config = await db.saveSplitConfig(
       parseInt(projectId),
       userId,
       BigInt(0),
-      { collaborators, percentages }
+      { collaborators, percentages },
+      false  // isActive = false, needs approval
     );
+
+    // Auto-approve for proposer
+    await db.approveSplitConfig(config.id, userId);
 
     res.json({
       success: true,
@@ -139,17 +165,27 @@ router.post('/:projectId/splits/:configId/approve', async (req: AuthRequest, res
       return res.status(403).json({ error: 'User is not a collaborator' });
     }
 
-    // Activate the split config
-    const config = await db.activateSplitConfig(parseInt(projectId), parseInt(configId));
+    // Record approval
+    await db.approveSplitConfig(parseInt(configId), userId);
 
-    if (!config) {
-      return res.status(404).json({ error: 'Split configuration not found' });
+    // Check if all collaborators have approved
+    const allApproved = await db.checkIfAllApproved(parseInt(projectId), parseInt(configId));
+
+    if (allApproved) {
+      // Activate the split config
+      const config = await db.activateSplitConfig(parseInt(projectId), parseInt(configId));
+      return res.json({
+        success: true,
+        config,
+        activated: true,
+        message: 'All collaborators approved! Split configuration activated.',
+      });
     }
 
     res.json({
       success: true,
-      config,
-      message: 'Split configuration activated',
+      activated: false,
+      message: 'Your approval recorded. Waiting for other collaborators to approve.',
     });
   } catch (error: any) {
     console.error('Approve split error:', error);
