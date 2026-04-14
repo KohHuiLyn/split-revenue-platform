@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { Ed25519PrivateKey, Ed25519Account, AccountAddress } from "@aptos-labs/ts-sdk";
+import { Ed25519PrivateKey, Ed25519Account, AccountAddress, PrivateKey } from "@aptos-labs/ts-sdk";
 
 /**
  * Wallet Service
@@ -76,7 +76,9 @@ export function decryptPrivateKey(encryptedData: string): string {
  */
 export function getAccountFromEncrypted(encryptedPrivateKey: string): Ed25519Account {
   const privateKeyHex = decryptPrivateKey(encryptedPrivateKey);
-  const privateKey = new Ed25519PrivateKey(privateKeyHex);
+  // Format to AIP-80 compliant string to suppress warning
+  const aip80PrivateKey = PrivateKey.formatPrivateKey(privateKeyHex, "ed25519");
+  const privateKey = new Ed25519PrivateKey(aip80PrivateKey);
 
   // Create account from private key
   return new Ed25519Account({ privateKey });

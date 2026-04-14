@@ -5,6 +5,7 @@ import {
   Ed25519PrivateKey,
   Ed25519Account,
   AccountAddress,
+  PrivateKey,
 } from "@aptos-labs/ts-sdk";
 
 /**
@@ -34,7 +35,9 @@ export async function initializeAptosClient() {
     throw new Error("APTOS_ADMIN_PRIVATE_KEY not set");
   }
 
-  const privateKey = new Ed25519PrivateKey(adminPrivateKeyHex);
+  // Format to AIP-80 compliant string to suppress warning
+  const aip80PrivateKey = PrivateKey.formatPrivateKey(adminPrivateKeyHex, "ed25519");
+  const privateKey = new Ed25519PrivateKey(aip80PrivateKey);
   adminAccount = new Ed25519Account({ privateKey });
 
   console.log(`✅ Aptos Client connected to ${nodeUrl}`);
