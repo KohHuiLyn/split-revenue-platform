@@ -54,9 +54,23 @@ export async function getUserByEmail(email: string) {
   const result = await db_instance`
     SELECT id, email, wallet_address, wallet_private_key_encrypted, display_name, created_at
     FROM users
-    WHERE email = ${email}
+    WHERE LOWER(email) = LOWER(${email})
   `;
   return result[0] || null;
+}
+
+/**
+ * Search users by email (partial match)
+ */
+export async function searchUsersByEmail(emailQuery: string) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT id, email, display_name
+    FROM users
+    WHERE LOWER(email) LIKE ${'%' + emailQuery.toLowerCase() + '%'}
+    LIMIT 10
+  `;
+  return result;
 }
 
 export async function getUserByWalletAddress(walletAddress: string) {
