@@ -2,13 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  scroll-behavior: smooth;
+@layer base {
+  :root {
+
+    --font-size: 16px;
+    --font-display: 'Epilogue', system-ui, -apple-system, sans-serif;
+    --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+    --cyan: #00d4ff;
+    --coral: #ff6b4a;
+    --navy: #0a0e27;
+    --navy-light: #1a1f3f;
+  }
+
+  body {
+    font-family: var(--font-body);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
-body {
-  @apply bg-gray-50;
-}
 
 .container {
   @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
