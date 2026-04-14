@@ -801,6 +801,7 @@ export async function getPublicProjects(limit: number = 50, offset: number = 0) 
   const result = await db_instance`
     SELECT 
       p.id,
+      p.creator_id,
       p.name,
       p.description,
       p.cover_image_url,
@@ -829,6 +830,7 @@ export async function getPublicProjectById(projectId: number) {
   const result = await db_instance`
     SELECT 
       p.id,
+      p.creator_id,
       p.name,
       p.description,
       p.cover_image_url,

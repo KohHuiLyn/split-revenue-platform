@@ -13,6 +13,7 @@ interface ProjectData {
   description: string;
   coverImageUrl: string | null;
   priceUsd: number;
+  creatorId: number;
   creatorName: string | null;
   creatorAvatar: string | null;
   collaboratorCount: number;
@@ -51,7 +52,7 @@ export default function Explore() {
   );
 
   const handleViewProject = (projectId: number) => {
-    router.push(`/projects/${projectId}`);
+    router.push(`/projects/public/${projectId}`);
   };
 
   return (
