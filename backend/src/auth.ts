@@ -43,6 +43,7 @@ router.post('/login', async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
+        displayName: user.display_name,
         walletAddress: user.wallet_address,
       },
     });
@@ -57,10 +58,10 @@ router.post('/login', async (req: Request, res: Response) => {
  */
 router.post('/signup', async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
+    const { email, password, displayName } = req.body;
+    console.log("display name is ", displayName)
+    if (!email || !password || !displayName) {
+      return res.status(400).json({ error: 'Email, password, and display name required' });
     }
 
     // Check if user exists
@@ -73,9 +74,9 @@ router.post('/signup', async (req: Request, res: Response) => {
     const wallet = generateAndEncryptWallet();
 
     // Create user
-    const user = await createUser(email, wallet.address, wallet.encryptedPrivateKey);
+    const user = await createUser(email, wallet.address, wallet.encryptedPrivateKey, displayName);
 
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
+    const token = jwt.sign({ userId: user.id, email: user.email , displayName: user.displayName }, JWT_SECRET, {
       expiresIn: '7d',
     });
 
@@ -84,6 +85,7 @@ router.post('/signup', async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
+        displayName: user.displayName,
         walletAddress: wallet.address,
       },
     });

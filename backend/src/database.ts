@@ -37,13 +37,14 @@ export async function createUser(
   email: string,
   walletAddress: string,
   encryptedPrivateKey: string,
+  display_name: string,
   oauthId?: string
 ) {
   const db_instance = getDb();
   const result = await db_instance`
-    INSERT INTO users (email, oauth_id, wallet_address, wallet_private_key_encrypted)
-    VALUES (${email}, ${oauthId || null}, ${walletAddress}, ${encryptedPrivateKey})
-    RETURNING id, email, wallet_address, created_at
+    INSERT INTO users (email, oauth_id, wallet_address, wallet_private_key_encrypted, display_name)
+    VALUES (${email}, ${oauthId || null}, ${walletAddress}, ${encryptedPrivateKey}, ${display_name})
+    RETURNING id, email, wallet_address, display_name, created_at
   `;
   return result[0];
 }
@@ -51,7 +52,7 @@ export async function createUser(
 export async function getUserByEmail(email: string) {
   const db_instance = getDb();
   const result = await db_instance`
-    SELECT id, email, wallet_address, wallet_private_key_encrypted, created_at
+    SELECT id, email, wallet_address, wallet_private_key_encrypted, display_name, created_at
     FROM users
     WHERE email = ${email}
   `;
@@ -61,7 +62,7 @@ export async function getUserByEmail(email: string) {
 export async function getUserByWalletAddress(walletAddress: string) {
   const db_instance = getDb();
   const result = await db_instance`
-    SELECT id, email, wallet_address, created_at
+    SELECT id, email, wallet_address, display_name, created_at
     FROM users
     WHERE wallet_address = ${walletAddress}
   `;

@@ -55,6 +55,7 @@ router.get('/info', async (req: Request, res: Response) => {
         user: {
           id: user.id,
           email: user.email,
+          displayName: user.display_name,
         },
         wallet: {
           address: walletAddress,
@@ -75,6 +76,7 @@ router.get('/info', async (req: Request, res: Response) => {
         user: {
           id: user.id,
           email: user.email,
+          displayName: user.display_name,
         },
         wallet: {
           address: walletAddress,

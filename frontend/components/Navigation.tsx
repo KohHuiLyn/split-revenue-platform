@@ -43,7 +43,6 @@ export function Navigation() {
                   Payouts
                 </Link>
                 <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-600">{user?.email}</span>
                   <button
                     onClick={logout}
                     className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-opacity-90"

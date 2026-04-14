@@ -8,6 +8,7 @@ export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -22,7 +23,7 @@ export default function SignupPage() {
     setLoading(true);
 
     // Validation
-    if (!email || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword || !displayName) {
       setError('All fields are required');
       setLoading(false);
       return;
@@ -41,9 +42,11 @@ export default function SignupPage() {
     }
 
     try {
+      console.log("Signing up with ", { email, displayName });
       const response = await axios.post(`${API_URL}/api/auth/signup`, {
         email,
         password,
+        displayName
       });
 
       const { token, user } = response.data;
@@ -103,6 +106,20 @@ export default function SignupPage() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            {/* display name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Username
+              </label>
+              <input
+                type="text"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                placeholder="John Doe"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
                 required
               />
             </div>

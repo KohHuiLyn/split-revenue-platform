@@ -55,12 +55,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, displayName?: string) => {
     try {
       // Try login first
       const response = await axios.post(`${API_URL}/api/auth/login`, {
         email,
         password,
+        displayName
       });
       const { token: newToken, user: newUser } = response.data;
       localStorage.setItem('token', newToken);
@@ -74,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const signupResponse = await axios.post(`${API_URL}/api/auth/signup`, {
             email,
             password,
+            displayName
           });
           const { token: newToken, user: newUser } = signupResponse.data;
           localStorage.setItem('token', newToken);
