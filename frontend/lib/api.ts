@@ -133,7 +133,6 @@ export const api = {
   wallet: {
     getInfo: () => apiClient.get('/api/wallet/info'),
     requestFaucet: () => apiClient.post('/api/wallet/request-faucet', {}),
-    requestMockUsdc: () => apiClient.post('/api/wallet/request-mock-usdc', {}),
     getTransactions: () => apiClient.get('/api/wallet/transactions'),
   },
 };

@@ -34,10 +34,8 @@ export default function WalletTestPage() {
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [faucetLoading, setFaucetLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const [successNote, setSuccessNote] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Redirect if not authenticated
@@ -76,27 +74,6 @@ export default function WalletTestPage() {
       setError(err.response?.data?.error || 'Failed to load wallet info');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRequestFaucet = async () => {
-    setFaucetLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      // Request Mock USDC for testing
-      const response = await api.wallet.requestMockUsdc();
-      setSuccess(`✅ ${response.data.message}`);
-
-      // Reload wallet info after 3 seconds
-      setTimeout(() => {
-        loadWalletInfo();
-      }, 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Mock USDC request failed');
-    } finally {
-      setFaucetLoading(false);
     }
   };
 
@@ -253,7 +230,7 @@ export default function WalletTestPage() {
                 rel="noopener noreferrer"
                 className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
               >
-                Get 20 USDC from faucet
+                Get 100 USDC from Circle faucet
                 <ExternalLink size={20} />
               </a>
               <p className="text-xs text-gray-500 mt-2">

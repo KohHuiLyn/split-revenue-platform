@@ -176,49 +176,4 @@ router.get('/transactions', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * Request testnet USDC tokens from Circle's official faucet
- * Note: Uses Circle's faucet at https://faucet.circle.com/
- */
-router.post('/request-mock-usdc', async (req: Request, res: Response) => {
-  try {
-    const userId = (req as any).userId;
-    const db = getDb();
-
-    // Get user from database
-    const users = await db`
-      SELECT id, wallet_address, email FROM users WHERE id = ${userId}
-    `;
-
-    if (!users || users.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const user = users[0];
-    const walletAddress = user.wallet_address;
-    console.log(`💰 Requesting testnet USDC for ${walletAddress}...`);
-
-    // Circle's faucet is external - redirect users to the official faucet
-    // The faucet requires manual action (captcha)
-    res.json({
-      success: true,
-      message: 'Please use Circle\'s official testnet faucet to get USDC.',
-      wallet: walletAddress,
-      faucetUrl: 'https://faucet.circle.com/',
-      amount: '10',  // Circle's public faucet gives 10 USDC per request
-      amountMicro: '10000000',  // 10 USDC in micro units
-      nextSteps: [
-        '1. Go to https://faucet.circle.com/',
-        '2. Select "Aptos Testnet" as the network',
-        '3. Enter your wallet address',
-        '4. Complete the captcha and request USDC',
-        '5. Your USDC will arrive in ~1-2 minutes'
-      ]
-    });
-  } catch (error: any) {
-    console.error('❌ USDC request error:', error.message);
-    res.status(500).json({ error: 'Failed to request testnet USDC' });
-  }
-});
-
 export default router;

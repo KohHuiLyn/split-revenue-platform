@@ -134,47 +134,6 @@ describe('Wallet Info Endpoints', () => {
     });
   });
 
-  describe('POST /request-mock-usdc', () => {
-    it('should return success message (stub implementation)', async () => {
-      // This test documents the current stub behavior
-      const response = {
-        success: true,
-        message: '100 Mock USDC tokens ready for testing',
-        wallet: testWalletAddress,
-        amount: '100',
-        amountMicro: '100000000',
-      };
-
-      // Current behavior: just returns a message, no blockchain call
-      expect(response.success).toBe(true);
-      expect(response.message).toBe('100 Mock USDC tokens ready for testing');
-    });
-
-    it('should NOT actually mint tokens (documented bug)', async () => {
-      // This test documents why the faucet doesn't work
-      // The endpoint returns success but never calls blockchain
-
-      const mockMintCalled = false; // Current implementation never calls mint
-
-      // In a real implementation, this would be true after calling the contract
-      expect(mockMintCalled).toBe(false);
-    });
-
-    it('should document that balance never changes because no blockchain tx submitted', async () => {
-      // Arrange: The endpoint just returns JSON, no blockchain interaction
-      const result = {
-        success: true,
-        message: '100 Mock USDC tokens ready for testing',
-      };
-
-      // Act: No actual mint transaction is submitted
-      // (This is the bug - we document it with a test)
-
-      // Assert: The response doesn't include a transaction hash
-      expect(result.success).toBe(true);
-    });
-  });
-
   describe('GET /transactions', () => {
     it('should return transaction list from blockchain', async () => {
       const mockTransactions = [
@@ -235,42 +194,5 @@ describe('Balance Calculation', () => {
     const displayBalance = (BigInt(microBalance) / BigInt(1000000)).toString();
 
     expect(displayBalance).toBe('123');
-  });
-});
-
-describe('Faucet Bug Documentation', () => {
-  it('documents why request-mock-usdc does not update balance', () => {
-    // The bug: request-mock-usdc endpoint is a stub that returns a fake success
-    // but never submits any blockchain transaction
-
-    const endpointBehavior = {
-      callsDatabase: false,
-      callsBlockchain: false,
-      returnsFakeSuccess: true,
-      mintsTokens: false,
-    };
-
-    // This test passes and documents the bug
-    expect(endpointBehavior.callsBlockchain).toBe(false);
-    expect(endpointBehavior.returnsFakeSuccess).toBe(true);
-  });
-
-  it('documents the fix required for faucet to work', () => {
-    // Required fix: The endpoint must:
-    // 1. Load the user's encrypted wallet key
-    // 2. Decrypt the private key
-    // 3. Create an Ed25519Account
-    // 4. Submit a transaction to mint tokens
-
-    const requiredFixSteps = [
-      'Load and decrypt user wallet private key',
-      'Create Ed25519Account signer',
-      'Call mock_usdc contract mint function',
-      'Submit transaction to blockchain',
-      'Wait for transaction confirmation',
-      'Verify balance increased',
-    ];
-
-    expect(requiredFixSteps.length).toBe(6);
   });
 });
