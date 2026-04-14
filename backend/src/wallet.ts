@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { AptosAccount } from "aptos";
+import { Ed25519PrivateKey, Ed25519Account, AccountAddress } from "@aptos-labs/ts-sdk";
 
 /**
  * Wallet Service
@@ -23,19 +23,19 @@ export interface WalletCredentials {
  * Generate a new Aptos account and encrypt the private key
  */
 export function generateAndEncryptWallet(): WalletCredentials {
-  // Generate new Aptos account
-  const account = new AptosAccount();
+  // Generate new Ed25519 account using new SDK
+  const account = Ed25519Account.generate();
 
   // Get the private key bytes
-  const privateKeyBytes = account.signingKey.secretKey;
+  const privateKeyBytes = account.privateKey.toUint8Array();
   const privateKeyHex = Buffer.from(privateKeyBytes).toString("hex");
 
   // Encrypt private key
   const encryptedPrivateKey = encryptPrivateKey(privateKeyHex);
 
   return {
-    address: account.address().toString(),
-    publicKey: account.pubKey().toString(),
+    address: account.accountAddress.toString(),
+    publicKey: account.publicKey.toString(),
     encryptedPrivateKey,
   };
 }
@@ -72,14 +72,14 @@ export function decryptPrivateKey(encryptedData: string): string {
 }
 
 /**
- * Get an Aptos account from encrypted credentials (for signing transactions)
+ * Get an Ed25519Account from encrypted credentials (for signing transactions)
  */
-export function getAccountFromEncrypted(encryptedPrivateKey: string): AptosAccount {
+export function getAccountFromEncrypted(encryptedPrivateKey: string): Ed25519Account {
   const privateKeyHex = decryptPrivateKey(encryptedPrivateKey);
-  const privateKeyBytes = Buffer.from(privateKeyHex, "hex");
+  const privateKey = new Ed25519PrivateKey(privateKeyHex);
 
   // Create account from private key
-  return new AptosAccount(privateKeyBytes);
+  return new Ed25519Account({ privateKey });
 }
 
 /**
