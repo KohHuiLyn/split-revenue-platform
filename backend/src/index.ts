@@ -10,6 +10,9 @@ import { initializeDatabase } from "./database";
 import { initializeAptosClient } from "./aptos-client";
 import authRoutes from "./auth";
 import walletRoutes from "./wallet-info";
+import projectRoutes from "./projects";
+import splitsRoutes from "./splits";
+import payoutsRoutes from "./payouts";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -65,23 +68,15 @@ async function bootstrap() {
     // Wallet routes (protected)
     app.use("/api/wallet", authMiddleware, walletRoutes);
 
-    // Project routes (to be implemented)
-    app.post("/api/projects", (req, res) => {
-      res.json({ message: "create project endpoint - to be implemented" });
-    });
+    // Project routes (protected)
+    app.use("/api/projects", authMiddleware, projectRoutes);
 
-    app.get("/api/projects", (req, res) => {
-      res.json({ message: "get projects endpoint - to be implemented" });
-    });
+    // Splits routes (protected)
+    app.use("/api/projects/:projectId/splits", authMiddleware, splitsRoutes);
 
-    // Payout routes (to be implemented)
-    app.get("/api/payouts/history", (req, res) => {
-      res.json({ message: "payout history endpoint - to be implemented" });
-    });
-
-    app.post("/api/payouts/batch", (req, res) => {
-      res.json({ message: "create payout batch endpoint - to be implemented" });
-    });
+    // Payouts routes (protected)
+    app.use("/api/projects/:projectId/payouts", authMiddleware, payoutsRoutes);
+    app.use("/api/payouts", authMiddleware, payoutsRoutes);
 
     // Error handler
     app.use((err: any, req: any, res: any, next: any) => {

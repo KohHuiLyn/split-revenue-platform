@@ -206,7 +206,7 @@ export async function createPayoutBatch(
   return result[0];
 }
 
-export async function updatePayoutBatchStatus(batchId: number, status: string, onChainBatchId?: bigint) {
+export async function updatePayoutBatchStatus(batchId: number, status: string, onChainBatchId?: number) {
   const db_instance = getDb();
   const result = await db_instance`
     UPDATE payout_batches
@@ -256,12 +256,197 @@ export async function getPayoutHistoryForRecipient(recipientId: number, limit: n
 }
 
 /**
- * Split config operations
+ * Project operations - Extended
+ */
+export async function getAllProjectsForUser(userId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 
+      p.*,
+      u.display_name as creator_name,
+      u.email as creator_email,
+      (SELECT COUNT(*) FROM project_collaborators WHERE project_id = p.id) as collaborator_count,
+      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_deposited_micro,
+      COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history WHERE project_id = p.id AND status = 'success'), 0) as total_distributed_micro
+    FROM projects p
+    LEFT JOIN users u ON p.creator_id = u.id
+    WHERE p.creator_id = ${userId} OR p.id IN (
+      SELECT project_id FROM project_collaborators WHERE collaborator_id = ${userId}
+    )
+    ORDER BY p.created_at DESC
+  `;
+  return result;
+}
+
+export async function getProjectDetails(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT *
+    FROM projects
+    WHERE id = ${projectId}
+  `;
+  return result[0] || null;
+}
+
+export async function getProjectWithCollaborators(projectId: number) {
+  const db_instance = getDb();
+  const projectResult = await db_instance`
+    SELECT * FROM projects WHERE id = ${projectId}
+  `;
+  
+  if (!projectResult.length) return null;
+
+  const collabResult = await db_instance`
+    SELECT 
+      pc.id, 
+      pc.split_percentage, 
+      pc.status, 
+      pc.joined_at,
+      u.id as user_id,
+      u.email, 
+      u.display_name as name,
+      u.wallet_address,
+      COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history WHERE recipient_id = u.id AND project_id = ${projectId} AND status = 'success'), 0) as earned_micro
+    FROM project_collaborators pc
+    LEFT JOIN users u ON pc.collaborator_id = u.id
+    WHERE pc.project_id = ${projectId}
+    ORDER BY pc.created_at ASC
+  `;
+
+  return {
+    project: projectResult[0],
+    collaborators: collabResult,
+  };
+}
+
+export async function updateProjectDetails(projectId: number, name: string, description: string, priceUsdcMicro: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    UPDATE projects 
+    SET name = ${name}, 
+        description = ${description},
+        price_usdc_micro = ${priceUsdcMicro},
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${projectId}
+    RETURNING *
+  `;
+  return result[0] || null;
+}
+
+export async function deleteProject(projectId: number) {
+  const db_instance = getDb();
+  await db_instance`DELETE FROM projects WHERE id = ${projectId}`;
+}
+
+export async function activateProject(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    UPDATE projects SET is_active = true, updated_at = CURRENT_TIMESTAMP WHERE id = ${projectId}
+    RETURNING *
+  `;
+  return result[0] || null;
+}
+
+/**
+ * Project Collaborators operations
+ */
+export async function addProjectCollaborator(
+  projectId: number,
+  collaboratorId: number | null,
+  email: string | null,
+  role: string,
+  status: string,
+  splitPercentage: number
+) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    INSERT INTO project_collaborators (project_id, collaborator_id, role, status, split_percentage)
+    VALUES (${projectId}, ${collaboratorId || null}, ${role}, ${status}, ${splitPercentage})
+    ON CONFLICT (project_id, collaborator_id) DO UPDATE
+    SET split_percentage = ${splitPercentage}, status = ${status}
+    RETURNING *
+  `;
+  return result[0];
+}
+
+export async function getProjectCollaboratorsDetail(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 
+      pc.id,
+      pc.collaborator_id,
+      u.email,
+      u.display_name as name,
+      u.wallet_address,
+      pc.role,
+      pc.status,
+      pc.split_percentage,
+      pc.joined_at,
+      pc.created_at
+    FROM project_collaborators pc
+    LEFT JOIN users u ON pc.collaborator_id = u.id
+    WHERE pc.project_id = ${projectId}
+    ORDER BY pc.created_at ASC
+  `;
+  return result;
+}
+
+export async function updateCollaboratorStatus(projectId: number, collaboratorId: number, status: string) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    UPDATE project_collaborators 
+    SET status = ${status}, joined_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = ${projectId} AND collaborator_id = ${collaboratorId}
+    RETURNING *
+  `;
+  return result[0] || null;
+}
+
+export async function getApprovalStatus(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 
+      pc.collaborator_id as id,
+      u.email,
+      u.display_name as name,
+      pc.status,
+      pc.split_percentage,
+      pc.joined_at as approved_at
+    FROM project_collaborators pc
+    LEFT JOIN users u ON pc.collaborator_id = u.id
+    WHERE pc.project_id = ${projectId} AND pc.role != 'creator'
+    ORDER BY pc.created_at ASC
+  `;
+  return result;
+}
+
+export async function checkAllApproved(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'approved' OR status = 'accepted' THEN 1 END) as approved
+    FROM project_collaborators 
+    WHERE project_id = ${projectId}
+  `;
+  const { total, approved } = result[0];
+  return total === approved;
+}
+
+export async function removeCollaborator(projectId: number, collaboratorId: number) {
+  const db_instance = getDb();
+  await db_instance`
+    UPDATE project_collaborators 
+    SET status = 'removed', removed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = ${projectId} AND id = ${collaboratorId}
+  `;
+}
+
+/**
+ * Split config operations - Extended
  */
 export async function saveSplitConfig(
   projectId: number,
   createdById: number,
-  onChainConfigVersion: bigint,
+  onChainConfigVersion: number,
   configData: any
 ) {
   const db_instance = getDb();
@@ -271,4 +456,227 @@ export async function saveSplitConfig(
     RETURNING id, on_chain_config_version, created_at
   `;
   return result[0];
+}
+
+export async function getCurrentSplitConfig(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT * FROM split_configs 
+    WHERE project_id = ${projectId} AND is_active = true
+    ORDER BY created_at DESC LIMIT 1
+  `;
+  return result[0] || null;
+}
+
+export async function getSplitConfigHistory(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 
+      sc.id,
+      sc.on_chain_config_version as version,
+      sc.config_data,
+      sc.is_active,
+      u.display_name as created_by_name,
+      sc.created_at,
+      sc.updated_at
+    FROM split_configs sc
+    LEFT JOIN users u ON sc.created_by_id = u.id
+    WHERE sc.project_id = ${projectId}
+    ORDER BY sc.created_at DESC
+  `;
+  return result;
+}
+
+export async function activateSplitConfig(projectId: number, configId: number) {
+  const db_instance = getDb();
+  // Deactivate all current configs
+  await db_instance`
+    UPDATE split_configs SET is_active = false WHERE project_id = ${projectId}
+  `;
+  // Activate the new one
+  const result = await db_instance`
+    UPDATE split_configs SET is_active = true WHERE id = ${configId}
+    RETURNING *
+  `;
+  return result[0];
+}
+
+/**
+ * Vault Balance & Revenue operations
+ */
+export async function getVaultBalance(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 
+      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches 
+                WHERE project_id = ${projectId} AND status = 'executed'), 0) as total_deposited,
+      COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history 
+                WHERE project_id = ${projectId} AND status = 'success'), 0) as total_distributed,
+      COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history 
+                WHERE project_id = ${projectId} AND status = 'pending'), 0) as pending_distribution
+    FROM projects WHERE id = ${projectId}
+  `;
+  return result[0];
+}
+
+export async function getExpectedShares(projectId: number) {
+  const db_instance = getDb();
+  
+  const balanceResult = await db_instance`
+    SELECT 
+      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches 
+                WHERE project_id = ${projectId} AND status = 'executed'), 0) -
+      COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history 
+                WHERE project_id = ${projectId} AND status = 'success'), 0) as balance_micro
+    FROM projects WHERE id = ${projectId}
+  `;
+
+  const vaultBalanceMicro = balanceResult[0].balance_micro;
+
+  const collabResult = await db_instance`
+    SELECT 
+      pc.collaborator_id,
+      u.email,
+      u.display_name as name,
+      pc.split_percentage,
+      COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history 
+       WHERE recipient_id = u.id AND project_id = ${projectId} AND status = 'success'), 0) as total_earned
+    FROM project_collaborators pc
+    LEFT JOIN users u ON pc.collaborator_id = u.id
+    WHERE pc.project_id = ${projectId} AND (pc.status = 'approved' OR pc.status = 'accepted')
+    ORDER BY pc.created_at ASC
+  `;
+
+  return {
+    vaultBalanceMicro,
+    collaborators: collabResult,
+  };
+}
+
+/**
+ * Payout Batch & History operations
+ */
+export async function createDepositBatch(projectId: number, amountUsdcMicro: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    INSERT INTO payout_batches (project_id, total_amount_usdc_micro, num_recipients, status)
+    VALUES (${projectId}, ${amountUsdcMicro}, 0, 'executed')
+    RETURNING *
+  `;
+  return result[0];
+}
+
+export async function getDepositHistory(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT id, total_amount_usdc_micro as amount, status, created_at
+    FROM payout_batches
+    WHERE project_id = ${projectId}
+    ORDER BY created_at DESC
+  `;
+  return result;
+}
+
+export async function getProjectTransactionHistory(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 'deposit' as type, pb.total_amount_usdc_micro as amount, pb.created_at as date, NULL::text as from_user, pb.on_chain_batch_id as tx_hash
+    FROM payout_batches pb
+    WHERE pb.project_id = ${projectId}
+    UNION ALL
+    SELECT 'distribution' as type, amount_usdc_micro as amount, created_at as date, NULL::text as from_user, on_chain_record_id as tx_hash
+    FROM payout_history
+    WHERE project_id = ${projectId}
+    ORDER BY date DESC
+    LIMIT 50
+  `;
+  return result;
+}
+
+export async function createPayoutDistribution(projectId: number, totalAmountMicro: number, numRecipients: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    INSERT INTO payout_batches (project_id, total_amount_usdc_micro, num_recipients, status)
+    VALUES (${projectId}, ${totalAmountMicro}, ${numRecipients}, 'pending')
+    RETURNING *
+  `;
+  return result[0];
+}
+
+export async function recordPayoutHistory(
+  batchId: number,
+  projectId: number,
+  recipientId: number,
+  amountUsdcMicro: number,
+  onChainRecordId?: string
+) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    INSERT INTO payout_history (batch_id, project_id, recipient_id, amount_usdc_micro, on_chain_record_id, status)
+    VALUES (${batchId}, ${projectId}, ${recipientId}, ${amountUsdcMicro}, ${onChainRecordId || null}, 'success')
+    RETURNING *
+  `;
+  return result[0];
+}
+
+export async function updatePayoutBatchExecuted(batchId: number, onChainBatchId?: string) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    UPDATE payout_batches
+    SET status = 'executed', on_chain_batch_id = ${onChainBatchId || null}, executed_at = CURRENT_TIMESTAMP
+    WHERE id = ${batchId}
+    RETURNING *
+  `;
+  return result[0];
+}
+
+export async function getPayoutBatchById(batchId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT * FROM payout_batches WHERE id = ${batchId}
+  `;
+  return result[0] || null;
+}
+
+export async function getPayoutBatchTransactions(batchId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 
+      ph.id,
+      ph.recipient_id,
+      u.email,
+      u.display_name as name,
+      ph.amount_usdc_micro,
+      ph.status,
+      ph.on_chain_record_id,
+      ph.created_at
+    FROM payout_history ph
+    LEFT JOIN users u ON ph.recipient_id = u.id
+    WHERE ph.batch_id = ${batchId}
+    ORDER BY ph.created_at DESC
+  `;
+  return result;
+}
+
+export async function getUserPayoutHistory(userId: number, limit: number = 50, offset: number = 0) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 
+      ph.id,
+      ph.batch_id,
+      pb.project_id,
+      p.name as project_name,
+      ph.amount_usdc_micro,
+      ph.status,
+      ph.created_at,
+      u.email as creator_email
+    FROM payout_history ph
+    JOIN payout_batches pb ON ph.batch_id = pb.id
+    JOIN projects p ON ph.project_id = p.id
+    LEFT JOIN users u ON p.creator_id = u.id
+    WHERE ph.recipient_id = ${userId} OR p.creator_id = ${userId}
+    ORDER BY ph.created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+  return result;
 }
