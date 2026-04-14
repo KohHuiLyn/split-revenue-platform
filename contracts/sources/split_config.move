@@ -273,6 +273,12 @@ module Splitr::split_config {
 
     // Check if a split config exists for a project
     #[view]
+    public fun is_registry_initialized(): bool {
+        exists<SplitRegistry>(@Splitr)
+    }
+
+    // Check if a split config exists for a project
+    #[view]
     public fun has_split_config(project_id: u64): bool acquires SplitRegistry {
         if (!exists<SplitRegistry>(@Splitr)) {
             false

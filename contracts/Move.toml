@@ -4,10 +4,11 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-Splitr = "0x7be1da1e5dd3d50db8f59307073e61ff6011738bb0d81ba0ed8340d75043e54a"
+Splitr = "0x4739c234861f66e29e55ae20e8286903ff669645f29a541eb4c62a8d8c8639d0"
+# Splitr = "_"
 
 [dev-addresses]
-Splitr = "0x1"
+Splitr = "0xcafe"
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-framework.git"

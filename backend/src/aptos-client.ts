@@ -4,61 +4,86 @@ import {
   Network,
   Ed25519PrivateKey,
   Ed25519Account,
-  AccountAddress,
   PrivateKey,
 } from "@aptos-labs/ts-sdk";
+import { configDotenv } from "dotenv";
+
+configDotenv();
 
 /**
- * Aptos Client Service
- * Handles all blockchain interactions
+ * Aptos client service for Splitr contracts.
  */
 
 let client: Aptos;
 let adminAccount: Ed25519Account;
 
-const MODULE_ADDRESS = process.env.APTOS_MODULE_ADDRESS || "0x1";
+const MODULE_ADDRESS = process.env.APTOS_MODULE_ADDRESS;
 
-// Circle USDC addresses per network (from Circle docs)
+// Circle USDC metadata object addresses.
 const USDC_MAINNET = "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b";
 const USDC_TESTNET = "0x69091fbab5f7d635ee7ac5098cf0c1efbe31d68fec0f2cd565e8d168daf52832";
-/**
- * Get the USDC coin type for the current network
- * Dynamically selects based on APTOS_NODE_URL
- */
+
 export function getUsdcCoinType(): string {
   const nodeUrl = process.env.APTOS_NODE_URL || "";
-
   if (nodeUrl.includes("mainnet")) {
-    return `${USDC_MAINNET}`;
+    return USDC_MAINNET;
   }
-  // Default to testnet
-  return `${USDC_TESTNET}`;
+  return USDC_TESTNET;
 }
 
-const USDC_COIN_TYPE = getUsdcCoinType();
+export function getUsdcMetadataAddress(): string {
+  return getUsdcCoinType();
+}
+
+function toMoveByteVector(input: string): number[] {
+  return Array.from(Buffer.from(input, "utf8"));
+}
+
+async function submitEntryFunction(
+  signer: Ed25519Account,
+  functionId: string,
+  functionArguments: Array<any>,
+  typeArguments: string[] = []
+): Promise<string> {
+  const aptos = getClient();
+  const transaction = await aptos.transaction.build.simple({
+    sender: signer.accountAddress,
+    data: {
+      function: functionId,
+      typeArguments,
+      functionArguments,
+    },
+  });
+
+  const response = await aptos.transaction.signAndSubmitTransaction({
+    signer,
+    transaction,
+  });
+
+  await aptos.waitForTransaction({ transactionHash: response.hash });
+  return response.hash;
+}
 
 export async function initializeAptosClient() {
   const nodeUrl = process.env.APTOS_NODE_URL || "https://testnet.api.aptos.dev/v1";
+  const network = nodeUrl.includes("mainnet") ? Network.MAINNET : Network.TESTNET;
 
-  // Create AptosConfig and Aptos client (new SDK pattern)
   const config = new AptosConfig({
-    network: Network.TESTNET,
+    network,
     fullnode: nodeUrl,
   });
   client = new Aptos(config);
 
-  // Initialize admin account (for deploying contracts and executing payouts)
   const adminPrivateKeyHex = process.env.APTOS_ADMIN_PRIVATE_KEY;
   if (!adminPrivateKeyHex) {
     throw new Error("APTOS_ADMIN_PRIVATE_KEY not set");
   }
 
-  // Format to AIP-80 compliant string to suppress warning
   const aip80PrivateKey = PrivateKey.formatPrivateKey(adminPrivateKeyHex, "ed25519");
   const privateKey = new Ed25519PrivateKey(aip80PrivateKey);
   adminAccount = new Ed25519Account({ privateKey });
 
-  console.log(`✅ Aptos Client connected to ${nodeUrl}`);
+  console.log(`Aptos client connected to ${nodeUrl}`);
   console.log(`Admin account: ${adminAccount.accountAddress.toString()}`);
 }
 
@@ -76,205 +101,214 @@ export function getAdminAccount(): Ed25519Account {
   return adminAccount;
 }
 
-/**
- * Create initial split config on-chain
- */
-export async function createSplitConfigOnChain(
+export async function isVaultFactoryInitialized(): Promise<boolean> {
+  const aptos = getClient();
+  const result = await aptos.view({
+    payload: {
+      function: `${MODULE_ADDRESS}::vault_factory::is_initialized`,
+      functionArguments: [],
+    },
+  });
+  return Boolean(result?.[0]);
+}
+
+async function isSplitRegistryInitialized(): Promise<boolean> {
+  const aptos = getClient();
+  try {
+    const result = await aptos.view({
+      payload: {
+        function: `${MODULE_ADDRESS}::split_config::is_registry_initialized`,
+        functionArguments: [],
+      },
+    });
+    return Boolean(result?.[0]);
+  } catch (error: any) {
+    throw new Error(
+      `Missing on-chain function split_config::is_registry_initialized. Publish the latest contracts at ${MODULE_ADDRESS} before starting backend dependency checks. Original error: ${error?.message || error}`
+    );
+  }
+}
+
+async function isPayoutRegistryInitialized(): Promise<boolean> {
+  const aptos = getClient();
+  try {
+    const result = await aptos.view({
+      payload: {
+        function: `${MODULE_ADDRESS}::payout_registry::is_registry_initialized`,
+        functionArguments: [],
+      },
+    });
+    return Boolean(result?.[0]);
+  } catch (error: any) {
+    throw new Error(
+      `Missing on-chain function payout_registry::is_registry_initialized. Publish the latest contracts at ${MODULE_ADDRESS} before starting backend dependency checks. Original error: ${error?.message || error}`
+    );
+  }
+}
+
+export async function ensureVaultFactoryInitialized(): Promise<void> {
+  if (await isVaultFactoryInitialized()) {
+    await ensureFactoryDependenciesInitialized();
+    return;
+  }
+
+  const admin = getAdminAccount();
+  const usdcMetadataAddress = getUsdcMetadataAddress();
+
+  try {
+    await submitEntryFunction(
+      admin,
+      `${MODULE_ADDRESS}::vault_factory::init_factory`,
+      [usdcMetadataAddress]
+    );
+  } catch (error: any) {
+    // Handle race between multiple backend instances.
+    const message = String(error?.message || "").toLowerCase();
+    const maybeRace = message.includes("already initialized") || message.includes("abort");
+    if (!maybeRace) {
+      throw error;
+    }
+  }
+
+  if (!(await isVaultFactoryInitialized())) {
+    throw new Error("vault_factory is still not initialized after init attempt");
+  }
+
+  await ensureFactoryDependenciesInitialized();
+}
+
+async function ensureFactoryDependenciesInitialized(): Promise<void> {
+  const [splitReady, payoutReady] = await Promise.all([
+    isSplitRegistryInitialized(),
+    isPayoutRegistryInitialized(),
+  ]);
+
+  if (splitReady && payoutReady) {
+    return;
+  }
+
+  const admin = getAdminAccount();
+  try {
+    await submitEntryFunction(
+      admin,
+      `${MODULE_ADDRESS}::vault_factory::init_missing_registries`,
+      []
+    );
+  } catch (error: any) {
+    const message = String(error?.message || "").toLowerCase();
+    if (message.includes("function") && message.includes("not") && message.includes("found")) {
+      throw new Error(
+        `Missing on-chain function vault_factory::init_missing_registries. Publish the latest contracts at ${MODULE_ADDRESS} before starting backend dependency checks. Original error: ${error?.message || error}`
+      );
+    }
+    const maybeRace = message.includes("already") || message.includes("abort");
+    if (!maybeRace) {
+      throw error;
+    }
+  }
+
+  const [splitAfter, payoutAfter] = await Promise.all([
+    isSplitRegistryInitialized(),
+    isPayoutRegistryInitialized(),
+  ]);
+  if (!splitAfter || !payoutAfter) {
+    throw new Error("split or payout registry is still not initialized after init attempt");
+  }
+}
+
+// export async function createSplitConfigOnChain(
+//   signer: Ed25519Account,
+//   projectId: bigint,
+//   collaborators: string[],
+//   splitPercentagesBps: number[],
+//   treasuryAddress: string
+// ): Promise<string> {
+//   return submitEntryFunction(
+//     signer,
+//     `${MODULE_ADDRESS}::split_config::create_split_config`,
+//     [projectId.toString(), collaborators, splitPercentagesBps, treasuryAddress]
+//   );
+// }
+
+export async function createVaultOnChain(
+  signer: Ed25519Account,
   projectId: bigint,
   collaborators: string[],
-  splitPercentages: number[],
-  treasuryAddress: string
+  splitPercentagesBps: number[]
 ): Promise<string> {
-  const account = getAdminAccount();
-  const aptos = getClient();
-
-  try {
-    const transaction = await aptos.transaction.build.simple({
-      sender: account.accountAddress,
-      data: {
-        function: `${MODULE_ADDRESS}::split_config::create_split_config`,
-        functionArguments: [
-          projectId.toString(),
-          collaborators,
-          splitPercentages,
-          treasuryAddress,
-        ],
-      },
-    });
-
-    const response = await aptos.transaction.signAndSubmitTransaction({
-      signer: account,
-      transaction,
-    });
-
-    await aptos.waitForTransaction({ transactionHash: response.hash });
-
-    console.log(`✅ Split config created on-chain for project ${projectId}`);
-    return response.hash;
-  } catch (error) {
-    console.error("❌ Failed to create split config:", error);
-    throw error;
-  }
-}
-
-/**
- * Create a payout batch on-chain
- */
-export async function createPayoutBatchOnChain(
-  projectId: bigint,
-  recipients: string[],
-  splitPercentages: number[],
-  totalAmountUscdc: bigint
-): Promise<{ txHash: string; batchId: bigint }> {
-  const account = getAdminAccount();
-  const aptos = getClient();
-
-  try {
-    const transaction = await aptos.transaction.build.simple({
-      sender: account.accountAddress,
-      data: {
-        function: `${MODULE_ADDRESS}::revenue_splitter::create_payout_batch`,
-        typeArguments: [USDC_COIN_TYPE],
-        functionArguments: [
-          projectId.toString(),
-          recipients,
-          splitPercentages.map((p) => BigInt(p)),
-          totalAmountUscdc.toString(),
-        ],
-      },
-    });
-
-    const response = await aptos.transaction.signAndSubmitTransaction({
-      signer: account,
-      transaction,
-    });
-
-    await aptos.waitForTransaction({ transactionHash: response.hash });
-
-    console.log(`✅ Payout batch created on-chain for project ${projectId}`);
-
-    // In production, extract batch_id from events
-    return {
-      txHash: response.hash,
-      batchId: BigInt(0), // TODO: Extract from events
-    };
-  } catch (error) {
-    console.error("❌ Failed to create payout batch:", error);
-    throw error;
-  }
-}
-
-/**
- * Execute payout batch on-chain
- */
-export async function executePayoutBatchOnChain(batchId: bigint): Promise<string> {
-  const account = getAdminAccount();
-  const aptos = getClient();
-
-  try {
-    const transaction = await aptos.transaction.build.simple({
-      sender: account.accountAddress,
-      data: {
-        function: `${MODULE_ADDRESS}::revenue_splitter::execute_payout_batch`,
-        typeArguments: [USDC_COIN_TYPE],
-        functionArguments: [batchId.toString()],
-      },
-    });
-
-    const response = await aptos.transaction.signAndSubmitTransaction({
-      signer: account,
-      transaction,
-    });
-
-    await aptos.waitForTransaction({ transactionHash: response.hash });
-
-    console.log(`✅ Payout batch ${batchId} executed on-chain`);
-    return response.hash;
-  } catch (error) {
-    console.error("❌ Failed to execute payout batch:", error);
-    throw error;
-  }
-}
-
-/**
- * Record payout execution on-chain (after blockchain execution succeeds)
- */
-export async function recordPayoutOnChain(
-  batchId: bigint,
-  projectId: bigint,
-  recipients: string[],
-  amounts: bigint[],
-  statuses: number[], // 0: pending, 1: success, 2: failed
-  txHashes: string[]
-): Promise<string> {
-  const account = getAdminAccount();
-  const aptos = getClient();
-
-  // Convert hex strings to Uint8Array for the payload
-  const txHashesBytes = txHashes.map((h) =>
-    Uint8Array.from(Buffer.from(h.replace("0x", ""), "hex"))
+  return submitEntryFunction(
+    signer,
+    `${MODULE_ADDRESS}::vault_factory::create_vault`,
+    [projectId.toString(), collaborators, splitPercentagesBps]
   );
-
-  try {
-    const transaction = await aptos.transaction.build.simple({
-      sender: account.accountAddress,
-      data: {
-        function: `${MODULE_ADDRESS}::payout_registry::batch_record_payouts`,
-        functionArguments: [
-          batchId.toString(),
-          projectId.toString(),
-          recipients,
-          amounts.map((a) => a.toString()),
-          statuses,
-          txHashesBytes,
-        ],
-      },
-    });
-
-    const response = await aptos.transaction.signAndSubmitTransaction({
-      signer: account,
-      transaction,
-    });
-
-    await aptos.waitForTransaction({ transactionHash: response.hash });
-
-    console.log(`✅ Payout records saved on-chain for batch ${batchId}`);
-    return response.hash;
-  } catch (error) {
-    console.error("❌ Failed to record payouts:", error);
-    throw error;
-  }
 }
 
-/**
- * Get current split config from on-chain
- */
-export async function getSplitConfigOnChain(projectId: bigint): Promise<any> {
+export async function depositRevenueOnChain(
+  signer: Ed25519Account,
+  projectId: bigint,
+  amountUsdcMicro: bigint
+): Promise<string> {
+  return submitEntryFunction(
+    signer,
+    `${MODULE_ADDRESS}::vault_factory::deposit_revenue`,
+    [projectId.toString(), amountUsdcMicro.toString()]
+  );
+}
+
+export async function executePayoutOnChain(
+  signer: Ed25519Account,
+  projectId: bigint,
+  payoutAmountUsdcMicro: bigint,
+  payoutReference: string
+): Promise<string> {
+  return submitEntryFunction(
+    signer,
+    `${MODULE_ADDRESS}::vault_factory::execute_payout`,
+    [
+      projectId.toString(),
+      payoutAmountUsdcMicro.toString(),
+      toMoveByteVector(payoutReference),
+    ]
+  );
+}
+
+export async function getVaultBalanceOnChain(projectId: bigint): Promise<bigint> {
   const aptos = getClient();
+  const result = await aptos.view({
+    payload: {
+      function: `${MODULE_ADDRESS}::vault_factory::get_vault_balance`,
+      functionArguments: [projectId.toString()],
+    },
+  });
+  return BigInt(String(result?.[0] ?? "0"));
+}
 
-  try {
-    const resources = await aptos.account.getAccountResources({
-      accountAddress: AccountAddress.from(MODULE_ADDRESS),
-    });
+export async function getVaultTotalsOnChain(
+  projectId: bigint
+): Promise<{ totalDeposited: bigint; totalDistributed: bigint }> {
+  const aptos = getClient();
+  const result = await aptos.view({
+    payload: {
+      function: `${MODULE_ADDRESS}::vault_factory::get_vault_totals`,
+      functionArguments: [projectId.toString()],
+    },
+  });
 
-    // Filter for split config resource
-    // In production, parse the resource properly
-    return null; // TODO: Implement proper resource parsing
-  } catch (error) {
-    console.error("❌ Failed to get split config:", error);
-    throw error;
-  }
+  const tuple = (result?.[0] as Array<string | number | bigint>) || [];
+  return {
+    totalDeposited: BigInt(String(tuple[0] ?? "0")),
+    totalDistributed: BigInt(String(tuple[1] ?? "0")),
+  };
 }
 
 /**
- * Check account USDC balance using Fungible Asset API
+ * Check account USDC balance via indexer query.
  */
 export async function getUsdcBalance(address: string): Promise<bigint> {
-  const client = getClient();
+  const aptos = getClient();
 
   try {
-    // Use getCurrentFungibleAssetBalances with filter for USDC asset type
-    const balances = await client.getCurrentFungibleAssetBalances({
+    const balances = await aptos.getCurrentFungibleAssetBalances({
       options: {
         where: {
           owner_address: { _eq: address },
@@ -290,11 +324,10 @@ export async function getUsdcBalance(address: string): Promise<bigint> {
 
     return BigInt(balances[0].amount);
   } catch (error: any) {
-    // Account might not have USDC yet - that's OK
     if (error.status === 404 || error.message?.includes("404") || error.message?.includes("not found")) {
       return BigInt(0);
     }
-    console.error("❌ Failed to get USDC balance:", error.message || error);
+    console.error("Failed to get USDC balance:", error.message || error);
     return BigInt(0);
   }
 }

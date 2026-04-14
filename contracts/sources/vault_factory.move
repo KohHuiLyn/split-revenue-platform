@@ -44,16 +44,19 @@ module Splitr::vault_factory {
     }
 
     const EFACTORY_NOT_INITIALIZED: u64 = 1;
-    const ESPLIT_CONFIG_NOT_FOUND: u64 = 2;
+    const ESPLIT_REGISTRY_NOT_INITIALIZED: u64 = 2;
     const EVAULT_ALREADY_EXISTS: u64 = 3;
     const EVAULT_NOT_FOUND: u64 = 4;
     const EUNAUTHORIZED: u64 = 5;
     const EINACTIVE_SPLIT_CONFIG: u64 = 6;
     const EFACTORY_ALREADY_INITIALIZED: u64 = 7;
+    const ESPLIT_CONFIG_ALREADY_EXISTS: u64 = 8;
 
     /// Initialize with the Circle USDC metadata object address.
     public entry fun init_factory(admin: &signer, usdc_metadata_address: address) {
         assert!(!exists<VaultFactory>(@Splitr), EFACTORY_ALREADY_INITIALIZED);
+        split_config::init_registry(admin);
+        payout_registry::init_registry(admin);
         let usdc_metadata = object::address_to_object<Metadata>(usdc_metadata_address);
         move_to(admin, VaultFactory {
             usdc_metadata,
@@ -62,13 +65,23 @@ module Splitr::vault_factory {
         });
     }
 
-    public entry fun create_vault(creator: &signer, project_id: u64) acquires VaultFactory {
+    public entry fun create_vault(
+        creator: &signer,
+        project_id: u64,
+        collaborators: vector<address>,
+        split_percentages: vector<u64>
+        ) acquires VaultFactory {
         assert!(exists<VaultFactory>(@Splitr), EFACTORY_NOT_INITIALIZED);
-        assert!(split_config::has_split_config(project_id), ESPLIT_CONFIG_NOT_FOUND);
+        assert!(
+            split_config::is_registry_initialized(),
+            ESPLIT_REGISTRY_NOT_INITIALIZED
+        );
+        assert!(
+            !split_config::has_split_config(project_id),
+            ESPLIT_CONFIG_ALREADY_EXISTS
+        );
 
         let creator_addr = signer::address_of(creator);
-        let editor = split_config::get_split_editor(project_id);
-        assert!(creator_addr == editor, EUNAUTHORIZED);
 
         let factory = borrow_global_mut<VaultFactory>(@Splitr);
         assert!(!table::contains(&factory.vaults, project_id), EVAULT_ALREADY_EXISTS);
@@ -82,6 +95,29 @@ module Splitr::vault_factory {
             vault_address,
             created_at: timestamp::now_seconds(),
         });
+
+        split_config::create_split_config(
+            creator,
+            project_id,
+            collaborators,
+            split_percentages,
+            vault_address
+        );
+    }
+
+    /// Backward-compatible migration helper for deployments where only VaultFactory
+    /// was initialized before split/payout registries were added.
+    public entry fun init_missing_registries(admin: &signer) {
+        assert!(exists<VaultFactory>(@Splitr), EFACTORY_NOT_INITIALIZED);
+        assert!(signer::address_of(admin) == @Splitr, EUNAUTHORIZED);
+
+        if (!split_config::is_registry_initialized()) {
+            split_config::init_registry(admin);
+        };
+
+        if (!payout_registry::is_registry_initialized()) {
+            payout_registry::init_registry(admin);
+        };
     }
 
     /// Pull `amount` of USDC from `payer` into the project vault.

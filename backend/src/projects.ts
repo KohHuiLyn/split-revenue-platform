@@ -1,10 +1,16 @@
 import express, { Request, Response } from 'express';
 import * as db from './database';
+import { getAccountFromEncrypted, isValidAptosAddress } from './wallet';
+import { createVaultOnChain, getVaultBalanceOnChain } from './aptos-client';
 
 const router = express.Router();
 
 interface AuthRequest extends Request {
   userId?: number;
+}
+
+function toBasisPoints(percentage: number): number {
+  return Math.round(percentage * 100);
 }
 
 // ============================================
@@ -19,7 +25,7 @@ interface AuthRequest extends Request {
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId;
-    const { name, description, priceUsdcMicro = 0, collaborators } = req.body;
+    const { name, description, priceUsdcMicro = 0, collaborators, treasuryAddress } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Project name is required' });
@@ -35,6 +41,69 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: `Split percentages must total 100%, got ${totalPercentage}%` });
     }
 
+    const creator = await db.getUserById(userId);
+    if (!creator) {
+      return res.status(404).json({ error: 'Creator not found' });
+    }
+    if (!creator.wallet_private_key_encrypted) {
+      return res.status(400).json({ error: 'Creator wallet signer is missing' });
+    }
+
+    const creatorSigner = getAccountFromEncrypted(creator.wallet_private_key_encrypted);
+    const signerAddress = creatorSigner.accountAddress.toString().toLowerCase();
+    if (signerAddress !== String(creator.wallet_address).toLowerCase()) {
+      return res.status(400).json({ error: 'Creator signer does not match stored wallet address' });
+    }
+
+    const resolvedCollaborators: Array<{
+      collaboratorId: number | null;
+      email: string | null;
+      address: string;
+      splitPercentage: number;
+    }> = [];
+
+    for (const collab of collaborators) {
+      let collaboratorId: number | null = collab.id ?? null;
+      let collaboratorEmail: string | null = collab.email ?? null;
+      let walletAddress: string | null = collab.address ?? collab.walletAddress ?? null;
+
+      if ((!walletAddress || !isValidAptosAddress(walletAddress)) && collaboratorId) {
+        const collabUser = await db.getUserById(collaboratorId);
+        if (collabUser?.wallet_address) {
+          walletAddress = collabUser.wallet_address;
+          collaboratorEmail = collaboratorEmail || collabUser.email;
+        }
+      }
+
+      if ((!walletAddress || !isValidAptosAddress(walletAddress)) && collaboratorEmail) {
+        const collabUser = await db.getUserByEmail(collaboratorEmail);
+        if (collabUser?.wallet_address) {
+          collaboratorId = collabUser.id;
+          walletAddress = collabUser.wallet_address;
+          collaboratorEmail = collabUser.email;
+        }
+      }
+
+      if (!walletAddress || !isValidAptosAddress(walletAddress)) {
+        return res.status(400).json({
+          error: `Collaborator ${collaboratorEmail || collaboratorId || 'unknown'} must have a valid wallet address`,
+        });
+      }
+
+      resolvedCollaborators.push({
+        collaboratorId,
+        email: collaboratorEmail,
+        address: walletAddress,
+        splitPercentage: Number(collab.splitPercentage || 0),
+      });
+    }
+
+    const splitBps = resolvedCollaborators.map((c) => toBasisPoints(c.splitPercentage));
+    const bpsTotal = splitBps.reduce((sum, value) => sum + value, 0);
+    if (bpsTotal !== 10000) {
+      return res.status(400).json({ error: `Split basis points must total 10000, got ${bpsTotal}` });
+    }
+
     // Create project
     const project = await db.createProject(userId, name, description || '', priceUsdcMicro);
     const projectId = project.id;
@@ -43,18 +112,23 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     await db.addProjectCollaborator(projectId, userId, null, 'creator', 'approved', 0);
 
     // Add collaborators
-    for (const collab of collaborators) {
-      let collaboratorId = collab.id;
-      
-      if (!collaboratorId && collab.email) {
-        const user = await db.getUserByEmail(collab.email);
-        collaboratorId = user?.id;
-      }
-
-      if (collaboratorId || collab.email) {
-        await db.addProjectCollaborator(projectId, collaboratorId || null, collab.email, 'contributor', 'invited', collab.splitPercentage);
-      }
+    for (const collab of resolvedCollaborators) {
+      await db.addProjectCollaborator(
+        projectId,
+        collab.collaboratorId,
+        collab.email,
+        'contributor',
+        'invited',
+        collab.splitPercentage
+      );
     }
+
+    const createVaultTxHash = await createVaultOnChain(
+      creatorSigner,
+      BigInt(projectId),
+      resolvedCollaborators.map(c => c.address),
+      splitBps
+    );
 
     // Create initial split config (active by default)
     await db.saveSplitConfig(
@@ -150,7 +224,7 @@ const collaborators = collabs.map((c: any) => ({
   earned: Math.round(parseInt(c.total_earned || 0)) / 1000000,
 }));
     // Get vault balance
-    const balance = await db.getVaultBalance(parseInt(id));
+    const balance = await getVaultBalanceOnChain(BigInt(id));
     const vaultBalance = Math.round((parseInt(balance.total_deposited) - parseInt(balance.total_distributed)) / 100) / 10000;
     const totalRevenue = Math.round(parseInt(balance.total_deposited) / 100) / 10000;
 

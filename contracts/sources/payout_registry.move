@@ -56,6 +56,11 @@ module Splitr::payout_registry {
         });
     }
 
+    #[view]
+    public fun is_registry_initialized(): bool {
+        exists<PayoutRecordRegistry>(@Splitr)
+    }
+
     /// Record a payout execution (called after successful payout batch execution)
     public fun record_payout(
         _admin: &signer,
