@@ -109,6 +109,18 @@ export async function getProject(projectId: number) {
   return result[0] || null;
 }
 
+export async function getProjectsByUserId(userId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT DISTINCT p.id, p.name, p.description, p.price_display_usd, p.is_active, p.created_at
+    FROM projects p
+    LEFT JOIN project_collaborators pc ON pc.project_id = p.id AND pc.status = 'accepted'
+    WHERE p.creator_id = ${userId} OR pc.collaborator_id = ${userId}
+    ORDER BY p.created_at DESC
+  `;
+  return result;
+}
+
 /**
  * Collaborator operations
  */

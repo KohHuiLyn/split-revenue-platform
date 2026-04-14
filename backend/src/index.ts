@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 // Load environment variables FIRST - before any other imports
 dotenv.config();
 
-import { initializeDatabase } from "./database";
+import { initializeDatabase, createProject, getProjectsByUserId, addCollaborator, getUserByEmail } from "./database";
 import { initializeAptosClient } from "./aptos-client";
 import authRoutes from "./auth";
 import walletRoutes from "./wallet-info";
@@ -65,13 +65,52 @@ async function bootstrap() {
     // Wallet routes (protected)
     app.use("/api/wallet", authMiddleware, walletRoutes);
 
-    // Project routes (to be implemented)
-    app.post("/api/projects", (req, res) => {
-      res.json({ message: "create project endpoint - to be implemented" });
+    // Project routes
+    app.post("/api/projects", authMiddleware, async (req: any, res) => {
+      try {
+        const { name, description, priceUsdcMicro, collaborators } = req.body;
+
+        if (!name) {
+          return res.status(400).json({ error: "Project name is required" });
+        }
+
+        const project = await createProject(
+          req.userId,
+          name,
+          description || "",
+          priceUsdcMicro || 0
+        );
+
+        // Add collaborators by email (skip any that don't exist yet)
+        const added: string[] = [];
+        const notFound: string[] = [];
+        if (Array.isArray(collaborators)) {
+          for (const c of collaborators) {
+            const user = await getUserByEmail(c.email);
+            if (user) {
+              await addCollaborator(project.id, user.id, "contributor", c.splitPercentage || 0);
+              added.push(c.email);
+            } else {
+              notFound.push(c.email);
+            }
+          }
+        }
+
+        res.status(201).json({ project, collaboratorsAdded: added, collaboratorsNotFound: notFound });
+      } catch (error: any) {
+        console.error("Create project error:", error);
+        res.status(500).json({ error: "Failed to create project" });
+      }
     });
 
-    app.get("/api/projects", (req, res) => {
-      res.json({ message: "get projects endpoint - to be implemented" });
+    app.get("/api/projects", authMiddleware, async (req: any, res) => {
+      try {
+        const projects = await getProjectsByUserId(req.userId);
+        res.json({ projects });
+      } catch (error: any) {
+        console.error("Get projects error:", error);
+        res.status(500).json({ error: "Failed to fetch projects" });
+      }
     });
 
     // Payout routes (to be implemented)
