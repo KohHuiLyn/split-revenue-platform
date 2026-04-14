@@ -66,7 +66,7 @@ export default function ProjectDetail() {
   const router = useRouter();
   const { id } = router.query;
 
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'transactions'>('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -86,12 +86,14 @@ export default function ProjectDetail() {
   const [settingsSuccess, setSettingsSuccess] = useState('');
   const [pendingSplits, setPendingSplits] = useState<SplitProposal[]>([]);
   const [approvingConfigId, setApprovingConfigId] = useState<number | null>(null);
+
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Don't redirect while auth is still loading (restoring from localStorage)
+    if (!isAuthenticated && !authLoading) {
       router.push('/login');
       return;
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, authLoading, router]);
     const fetchProjectData = async () => {
       try {
         setLoading(true);
