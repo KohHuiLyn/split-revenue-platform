@@ -27,6 +27,7 @@ interface ProjectData {
   creatorId: number;
   creatorName: string | null;
   creatorAvatar: string | null;
+  collaboratorIds: number[];
   collaboratorCount: number;
   totalRaised: number;
   coverImageUrl: string | null;
@@ -73,7 +74,10 @@ export default function PublicProject() {
     router.push(`/projects/${id}`);
   };
 
-  const isOwner = user && project && user.id === project.creatorId;
+  const isOwner = user && project && (
+  user.id === project.creatorId ||
+  (project.collaboratorIds && project.collaboratorIds.includes(user.id))
+);
 
   if (loading) {
     return (

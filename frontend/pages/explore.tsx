@@ -16,6 +16,7 @@ interface ProjectData {
   creatorId: number;
   creatorName: string | null;
   creatorAvatar: string | null;
+  collaboratorIds: number[];
   collaboratorCount: number;
   totalRaised: number;
   createdAt: string;

@@ -811,7 +811,12 @@ export async function getPublicProjects(limit: number = 50, offset: number = 0) 
       u.display_name as creator_name,
       u.profile_picture_url as creator_avatar,
       (SELECT COUNT(*) FROM project_collaborators WHERE project_id = p.id) as collaborator_count,
-      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro
+      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro,
+      (
+        SELECT COALESCE(json_agg(collaborator_id), '[]'::json)
+        FROM project_collaborators
+        WHERE project_id = p.id AND status = 'accepted'
+      ) as collaborator_ids
     FROM projects p
     LEFT JOIN users u ON p.creator_id = u.id
     WHERE p.is_active = true
@@ -840,7 +845,12 @@ export async function getPublicProjectById(projectId: number) {
       u.display_name as creator_name,
       u.profile_picture_url as creator_avatar,
       (SELECT COUNT(*) FROM project_collaborators WHERE project_id = p.id) as collaborator_count,
-      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro
+      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro,
+      (
+        SELECT COALESCE(json_agg(collaborator_id), '[]'::json)
+        FROM project_collaborators
+        WHERE project_id = p.id AND status = 'accepted'
+      ) as collaborator_ids
     FROM projects p
     LEFT JOIN users u ON p.creator_id = u.id
     WHERE p.id = ${projectId} AND p.is_active = true
