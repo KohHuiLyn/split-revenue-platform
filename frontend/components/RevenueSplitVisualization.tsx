@@ -71,7 +71,7 @@ export function RevenueSplitVisualization() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <div className="font-['Epilogue'] font-bold text-white text-lg">Revenue Vault</div>
+            <div className="font-display font-bold text-white text-lg">Revenue Vault</div>
             <div className="text-sm text-white/50 mt-1">Smart Contract</div>
           </div>
 
@@ -130,7 +130,7 @@ export function RevenueSplitVisualization() {
               </div>
               <div className="text-right">
                 <div
-                  className="text-2xl font-['Epilogue'] font-bold"
+                  className="text-2xl font-display font-bold"
                   style={{ color: collab.color }}
                 >
                   {collab.percentage}%
@@ -144,11 +144,11 @@ export function RevenueSplitVisualization() {
         </div>
       ))}
 
-      <motion.div
+      {/* <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 2.5 }}
-        className="absolute bottom-0 left-1/2 -translate-x-1/2 flex gap-8 px-6 py-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl"
+        className="absolute top-10 left-1/2 -translate-x-1/2 flex gap-8 px-6 py-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl"
       >
         <div className="text-center">
           <div className="text-xs text-white/50 mb-1">Total Split</div>
@@ -164,7 +164,7 @@ export function RevenueSplitVisualization() {
           <div className="text-xs text-white/50 mb-1">Disputes</div>
           <div className="font-semibold text-white">Zero</div>
         </div>
-      </motion.div>
+      </motion.div> */}
     </div>
   );
 }
