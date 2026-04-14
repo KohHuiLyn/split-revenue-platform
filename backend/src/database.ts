@@ -819,3 +819,29 @@ export async function getPublicProjects(limit: number = 50, offset: number = 0) 
   `;
   return result;
 }
+
+/**
+ * Get single public project by ID - for public project page
+ * Returns only active projects with public-facing info (no sensitive data)
+ */
+export async function getPublicProjectById(projectId: number) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    SELECT 
+      p.id,
+      p.name,
+      p.description,
+      p.cover_image_url,
+      p.price_display_usd,
+      p.is_active,
+      p.created_at,
+      u.display_name as creator_name,
+      u.profile_picture_url as creator_avatar,
+      (SELECT COUNT(*) FROM project_collaborators WHERE project_id = p.id) as collaborator_count,
+      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro
+    FROM projects p
+    LEFT JOIN users u ON p.creator_id = u.id
+    WHERE p.id = ${projectId} AND p.is_active = true
+  `;
+  return result[0] || null;
+}

@@ -35,4 +35,44 @@ router.get('/projects', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/public/projects/:id
+ * Get single active project for public project page
+ * Returns only public-facing info - no sensitive data (vault, earnings, etc.)
+ * Only returns active projects
+ */
+router.get('/projects/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const projectId = parseInt(id);
+
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    const project = await db.getPublicProjectById(projectId);
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found or not active' });
+    }
+
+    // Return only public-facing data - no sensitive info
+    res.json({
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      coverImageUrl: project.cover_image_url,
+      priceUsd: project.price_display_usd ? parseFloat(project.price_display_usd) : 0,
+      creatorName: project.creator_name,
+      creatorAvatar: project.creator_avatar,
+      collaboratorCount: parseInt(project.collaborator_count),
+      totalRaised: Math.round(parseInt(project.total_raised_micro || 0)) / 1000000,
+      createdAt: project.created_at,
+    });
+  } catch (error: any) {
+    console.error('Get public project error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
