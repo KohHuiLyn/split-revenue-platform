@@ -99,7 +99,7 @@ Time: 2:00 AM UTC
 ```
 ┌─────────────────────────────────────────────────┐
 │ Call createPayoutBatchOnChain():                │
-│ Module: SplitRevenueAdmin::revenue_splitter     │
+│ Module: Splitr::revenue_splitter     │
 │                                                 │
 │ Arguments:                                      │
 │   project_id: 1                                 │
@@ -158,7 +158,7 @@ After on-chain execution succeeds:
 ```
 ┌─────────────────────────────────────────────────┐
 │ Call recordPayoutOnChain()                      │
-│ Module: SplitRevenueAdmin::payout_registry      │
+│ Module: Splitr::payout_registry      │
 │                                                 │
 │ Arguments (batch of payouts):                   │
 │   batch_id: 123                                 │

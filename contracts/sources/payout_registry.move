@@ -1,4 +1,4 @@
-module SplitRevenueAdmin::payout_registry {
+module Splitr::payout_registry {
     use std::vector;
     use std::table::{Self, Table};
     use aptos_framework::event;
@@ -32,7 +32,8 @@ module SplitRevenueAdmin::payout_registry {
         last_payout_time: u64,
     }
 
-    /// Events
+    // Events
+    #[event]
     struct PayoutRecorded has drop, store {
         record_id: u64,
         batch_id: u64,
@@ -47,7 +48,6 @@ module SplitRevenueAdmin::payout_registry {
 
     /// Initialize the payout record registry (admin function)
     public fun init_registry(admin: &signer) {
-        let addr = signer::address_of(admin);
         move_to(admin, PayoutRecordRegistry {
             records: table::new(),
             recipient_records: table::new(),
@@ -58,7 +58,7 @@ module SplitRevenueAdmin::payout_registry {
 
     /// Record a payout execution (called after successful payout batch execution)
     public fun record_payout(
-        admin: &signer,
+        _admin: &signer,
         batch_id: u64,
         project_id: u64,
         recipient: address,
@@ -66,8 +66,7 @@ module SplitRevenueAdmin::payout_registry {
         status: u8, // 0: pending, 1: success, 2: failed
         tx_hash: vector<u8>,
     ) acquires PayoutRecordRegistry {
-        let admin_addr = signer::address_of(admin);
-        let registry = borrow_global_mut<PayoutRecordRegistry>(@SplitRevenueAdmin);
+        let registry = borrow_global_mut<PayoutRecordRegistry>(@Splitr);
 
         let record_id = registry.next_record_id;
         registry.next_record_id = record_id + 1;
@@ -118,7 +117,7 @@ module SplitRevenueAdmin::payout_registry {
 
     /// Get a specific payout record
     public fun get_payout_record(record_id: u64): (u64, address, u64, u64, u8) acquires PayoutRecordRegistry {
-        let registry = borrow_global<PayoutRecordRegistry>(@SplitRevenueAdmin);
+        let registry = borrow_global<PayoutRecordRegistry>(@Splitr);
         assert!(table::contains(&registry.records, record_id), ERECORD_NOT_FOUND);
 
         let record = table::borrow(&registry.records, record_id);
@@ -162,7 +161,7 @@ module SplitRevenueAdmin::payout_registry {
 
     /// Get all payout records for a project (pagination needed for large projects)
     public fun get_project_payout_records(project_id: u64): vector<u64> acquires PayoutRecordRegistry {
-        let registry = borrow_global<PayoutRecordRegistry>(@SplitRevenueAdmin);
+        let registry = borrow_global<PayoutRecordRegistry>(@Splitr);
         if (table::contains(&registry.project_records, project_id)) {
             *table::borrow(&registry.project_records, project_id)
         } else {
@@ -172,7 +171,7 @@ module SplitRevenueAdmin::payout_registry {
 
     /// Get all payout records for a recipient
     public fun get_recipient_payout_records(recipient: address): vector<u64> acquires PayoutRecordRegistry {
-        let registry = borrow_global<PayoutRecordRegistry>(@SplitRevenueAdmin);
+        let registry = borrow_global<PayoutRecordRegistry>(@Splitr);
         if (table::contains(&registry.recipient_records, recipient)) {
             *table::borrow(&registry.recipient_records, recipient)
         } else {

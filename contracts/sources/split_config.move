@@ -1,8 +1,9 @@
-module SplitRevenueAdmin::split_config {
+module Splitr::split_config {
     use std::vector;
     use std::table::{Self, Table};
     use aptos_framework::event;
     use aptos_framework::timestamp;
+    use std::signer;
 
     /// Split configuration for a project
     struct SplitConfig has key, store {
@@ -31,7 +32,8 @@ module SplitRevenueAdmin::split_config {
         pending_configs: Table<u64, PendingSplitConfig>, // project_id -> pending config
     }
 
-    /// Events
+    // Events
+    #[event]
     struct SplitConfigCreated has drop, store {
         project_id: u64,
         version: u64,
@@ -40,6 +42,7 @@ module SplitRevenueAdmin::split_config {
         created_at: u64,
     }
 
+    #[event]
     struct SplitConfigProposed has drop, store {
         project_id: u64,
         new_version: u64,
@@ -48,6 +51,7 @@ module SplitRevenueAdmin::split_config {
         proposed_at: u64,
     }
 
+    #[event]
     struct SplitConfigActivated has drop, store {
         project_id: u64,
         version: u64,
@@ -59,10 +63,30 @@ module SplitRevenueAdmin::split_config {
     const EUNAUTHORIZED: u64 = 2;
     const ENO_PENDING_CONFIG: u64 = 3;
     const EMISMATCH_LENGTH: u64 = 4;
+    const ECONFIG_NOT_FOUND: u64 = 5;
+
+    fun clone_address_vector(values: &vector<address>): vector<address> {
+        let out = vector::empty<address>();
+        let i = 0;
+        while (i < vector::length(values)) {
+            vector::push_back(&mut out, *vector::borrow(values, i));
+            i = i + 1;
+        };
+        out
+    }
+
+    fun clone_u64_vector(values: &vector<u64>): vector<u64> {
+        let out = vector::empty<u64>();
+        let i = 0;
+        while (i < vector::length(values)) {
+            vector::push_back(&mut out, *vector::borrow(values, i));
+            i = i + 1;
+        };
+        out
+    }
 
     /// Initialize the split registry (admin function)
     public fun init_registry(admin: &signer) {
-        let addr = signer::address_of(admin);
         move_to(admin, SplitRegistry {
             configs: table::new(),
             pending_configs: table::new(),
@@ -94,6 +118,9 @@ module SplitRevenueAdmin::split_config {
         };
         assert!(total == 10000, EBASIS_POINTS_DONT_SUM_TO_10000);
 
+        let collaborators_for_event = clone_address_vector(&collaborators);
+        let split_percentages_for_event = clone_u64_vector(&split_percentages);
+
         let now = timestamp::now_seconds();
         let config = SplitConfig {
             project_id,
@@ -107,14 +134,14 @@ module SplitRevenueAdmin::split_config {
             last_updated_at: now,
         };
 
-        let registry = borrow_global_mut<SplitRegistry>(@SplitRevenueAdmin);
+        let registry = borrow_global_mut<SplitRegistry>(@Splitr);
         table::add(&mut registry.configs, project_id, config);
 
         event::emit(SplitConfigCreated {
             project_id,
             version: 1,
-            collaborators: *vector::borrow(&registry.configs, project_id).collaborators,
-            split_percentages: *vector::borrow(&registry.configs, project_id).split_percentages,
+            collaborators: collaborators_for_event,
+            split_percentages: split_percentages_for_event,
             created_at: now,
         });
     }
@@ -128,7 +155,7 @@ module SplitRevenueAdmin::split_config {
         reason: vector<u8>,
     ) acquires SplitRegistry {
         let proposer_addr = signer::address_of(proposer);
-        let registry = borrow_global_mut<SplitRegistry>(@SplitRevenueAdmin);
+        let registry = borrow_global_mut<SplitRegistry>(@Splitr);
 
         // Check if project exists
         assert!(table::contains(&registry.configs, project_id), 2);
@@ -185,7 +212,7 @@ module SplitRevenueAdmin::split_config {
         project_id: u64,
     ) acquires SplitRegistry {
         let approver_addr = signer::address_of(approver);
-        let registry = borrow_global_mut<SplitRegistry>(@SplitRevenueAdmin);
+        let registry = borrow_global_mut<SplitRegistry>(@Splitr);
 
         // Check if pending config exists
         assert!(table::contains(&registry.pending_configs, project_id), ENO_PENDING_CONFIG);
@@ -200,12 +227,28 @@ module SplitRevenueAdmin::split_config {
 
         // Once creator approves, activate the new config
         if (vector::contains(&pending.approved_by, &current_config.can_edit)) {
-            let pending_removed = table::remove(&mut registry.pending_configs, project_id);
-            let new_config = pending_removed.new_config;
+            let PendingSplitConfig {
+                new_config,
+                proposed_by: _,
+                approved_by: _,
+                created_at: _,
+            } = table::remove(&mut registry.pending_configs, project_id);
             let old_version = current_config.version;
 
             new_config.is_active = true;
-            table::upsert(&mut registry.configs, project_id, new_config);
+            let old_config = table::remove(&mut registry.configs, project_id);
+            let SplitConfig {
+                project_id: _,
+                version: _,
+                collaborators: _,
+                split_percentages: _,
+                is_active: _,
+                can_edit: _,
+                treasury_address: _,
+                created_at: _,
+                last_updated_at: _,
+            } = old_config;
+            table::add(&mut registry.configs, project_id, new_config);
 
             let now = timestamp::now_seconds();
             event::emit(SplitConfigActivated {
@@ -219,19 +262,48 @@ module SplitRevenueAdmin::split_config {
 
     /// Get current split config for a project
     public fun get_split_config(project_id: u64): (vector<address>, vector<u64>, bool) acquires SplitRegistry {
-        let registry = borrow_global<SplitRegistry>(@SplitRevenueAdmin);
+        let registry = borrow_global<SplitRegistry>(@Splitr);
         let config = table::borrow(&registry.configs, project_id);
         (
-            config.collaborators,
-            config.split_percentages,
+            clone_address_vector(&config.collaborators),
+            clone_u64_vector(&config.split_percentages),
             config.is_active,
         )
+    }
+
+    // Check if a split config exists for a project
+    #[view]
+    public fun has_split_config(project_id: u64): bool acquires SplitRegistry {
+        if (!exists<SplitRegistry>(@Splitr)) {
+            false
+        } else {
+            let registry = borrow_global<SplitRegistry>(@Splitr);
+            table::contains(&registry.configs, project_id)
+        }
+    }
+
+    // Get project editor for authorization checks
+    #[view]
+    public fun get_split_editor(project_id: u64): address acquires SplitRegistry {
+        let registry = borrow_global<SplitRegistry>(@Splitr);
+        assert!(table::contains(&registry.configs, project_id), ECONFIG_NOT_FOUND);
+        let config = table::borrow(&registry.configs, project_id);
+        config.can_edit
+    }
+
+    // Get project treasury address from split config
+    #[view]
+    public fun get_treasury_address(project_id: u64): address acquires SplitRegistry {
+        let registry = borrow_global<SplitRegistry>(@Splitr);
+        assert!(table::contains(&registry.configs, project_id), ECONFIG_NOT_FOUND);
+        let config = table::borrow(&registry.configs, project_id);
+        config.treasury_address
     }
 
     /// Deactivate current split config (e.g., when new one is ready)
     public fun deactivate_split_config(admin: &signer, project_id: u64) acquires SplitRegistry {
         let admin_addr = signer::address_of(admin);
-        let registry = borrow_global_mut<SplitRegistry>(@SplitRevenueAdmin);
+        let registry = borrow_global_mut<SplitRegistry>(@Splitr);
 
         let config = table::borrow_mut(&mut registry.configs, project_id);
         assert!(admin_addr == config.can_edit, EUNAUTHORIZED);

@@ -1,12 +1,17 @@
 [package]
-name = "split_revenue_platform"
-version = "0.1.0"
-publish-at-address = "0x1"
-
-[dependencies]
-AptosStdlib = { local = "../../framework/aptos-framework", subdir = "aptos-stdlib" }
-MoveStdlib = { local = "../../framework/move-stdlib" }
+name = "Splitr"
+version = "1.0.0"
+authors = []
 
 [addresses]
-std = "0x1"
-aptos_framework = "0x1"
+Splitr = "0x7be1da1e5dd3d50db8f59307073e61ff6011738bb0d81ba0ed8340d75043e54a"
+
+[dev-addresses]
+Splitr = "0x1"
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
