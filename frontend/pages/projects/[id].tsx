@@ -24,13 +24,13 @@ import {
 
 interface Collaborator {
   id: number;
+  collaboratorId?: number;
   name: string;
   email: string;
   percentage: number;
   earned: number;
   status: string;
 }
-
 interface ProjectData {
   id: number;
   name: string;
@@ -49,22 +49,26 @@ interface ProjectData {
 export default function ProjectDetail() {
   const router = useRouter();
   const { id } = router.query;
-  const { isAuthenticated } = useAuth();
+  
+  const { isAuthenticated, user } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'transactions'>('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
-
+    const [depositOpen, setDepositOpen] = useState(false);
+    const [depositAmount, setDepositAmount] = useState('');
+    const [depositLoading, setDepositLoading] = useState(false);
+    const [depositError, setDepositError] = useState('');
+    const [depositSuccess, setDepositSuccess] = useState('');
+    const [distributeLoading, setDistributeLoading] = useState(false);
+    const [distributeError, setDistributeError] = useState('');
+    const [distributeSuccess, setDistributeSuccess] = useState('');
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
   }, [isAuthenticated, router]);
-
-  useEffect(() => {
-    if (!id) return;
-
     const fetchProjectData = async () => {
       try {
         setLoading(true);
@@ -96,9 +100,82 @@ export default function ProjectDetail() {
       }
     };
 
+  useEffect(() => {
+    if (!id) return;
     fetchProjectData();
   }, [id]);
+const handleApprove = async (collaboratorId: number) => {
+  if (!id) return;
 
+  try {
+    await api.projects.approveCollaborator(Number(id), collaboratorId);
+
+    await fetchProjectData(); // refresh UI
+  } catch (err: any) {
+    console.error('Approval failed:', err);
+  }
+};
+  const handleDistributeFunds = async () => {
+  if (!id) return;
+
+  setDistributeError('');
+  setDistributeSuccess('');
+
+  try {
+    setDistributeLoading(true);
+
+    const response = await api.payouts.distribute(Number(id));
+
+    setDistributeSuccess(response.data?.message || 'Revenue distributed successfully');
+
+    await fetchProjectData();
+  } catch (err: any) {
+    console.error('Distribution failed:', err);
+    setDistributeError(err.response?.data?.error || 'Failed to distribute funds');
+  } finally {
+    setDistributeLoading(false);
+  }
+};
+const handleDepositFunds = async () => {
+  if (!id) return;
+
+  setDepositError('');
+  setDepositSuccess('');
+
+  const parsedAmount = Number(depositAmount);
+
+  if (!parsedAmount || parsedAmount <= 0) {
+    setDepositError('Please enter a valid amount');
+    return;
+  }
+
+  try {
+    setDepositLoading(true);
+
+    // Convert USDC to micro-USDC
+    const amount_usdc_micro = Math.round(parsedAmount * 1_000_000);
+
+    await api.revenue.depositFunds(Number(id), {
+      amount_usdc_micro,
+      source: 'Manual Deposit',
+    });
+
+    setDepositSuccess('Deposit recorded successfully');
+    setDepositAmount('');
+
+    await fetchProjectData();
+
+    setTimeout(() => {
+      setDepositOpen(false);
+      setDepositSuccess('');
+    }, 1000);
+  } catch (err: any) {
+    console.error('Deposit failed:', err);
+    setDepositError(err.response?.data?.error || 'Failed to deposit funds');
+  } finally {
+    setDepositLoading(false);
+  }
+};
   if (!isAuthenticated) return null;
 
   if (loading) {
@@ -116,9 +193,9 @@ export default function ProjectDetail() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#0f1435] to-[#1a1f3f] text-white">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-6">
+          <Link href="/projects" className="inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-6">
             <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
+            Back to My Projects
           </Link>
           <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400">
             {error || 'Failed to load project'}
@@ -136,9 +213,9 @@ export default function ProjectDetail() {
 
       <div className="relative max-w-7xl mx-auto px-6 py-8">
         {/* Back Button */}
-        <Link href="/dashboard" className="inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-6">
+        <Link href="/projects" className="inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-6">
           <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
+          Back to My Projects
         </Link>
 
         {/* Header */}
@@ -182,15 +259,26 @@ export default function ProjectDetail() {
               <div className="w-12 h-12 bg-[#00d4ff]/20 rounded-lg flex items-center justify-center">
                 <Wallet className="w-6 h-6 text-[#00d4ff]" />
               </div>
-              <button className="group px-4 py-2 bg-[#00d4ff] hover:bg-[#00e5ff] rounded-lg transition-all font-semibold text-sm flex items-center gap-2">
-                <ArrowDownToLine className="w-4 h-4" />
-                Distribute
-              </button>
+            <button
+            onClick={handleDistributeFunds}
+            disabled={distributeLoading || projectData.vaultBalance <= 0}
+            className="group px-4 py-2 bg-[#00d4ff] hover:bg-[#00e5ff] rounded-lg transition-all font-semibold text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+            <ArrowDownToLine className="w-4 h-4" />
+            {distributeLoading ? 'Distributing...' : 'Distribute'}
+            </button>
             </div>
             <div className="text-sm text-white/50 mb-1">Pending Distribution</div>
             <div className="text-3xl font-display font-bold text-[#00d4ff]">
               ${projectData.vaultBalance.toLocaleString()}
             </div>
+            {distributeError && (
+                <div className="mt-3 text-sm text-red-400">{distributeError}</div>
+                )}
+
+                {distributeSuccess && (
+                <div className="mt-3 text-sm text-green-400">{distributeSuccess}</div>
+                )}
           </motion.div>
 
           <motion.div
@@ -279,6 +367,14 @@ export default function ProjectDetail() {
                           <div>
                             <div className="font-semibold">{collab.name}</div>
                             <div className="text-sm text-white/50">{collab.email}</div>
+
+                            <div className="text-xs mt-1">
+                            {collab.status === 'approved' ? (
+                                <span className="text-green-400">Approved</span>
+                            ) : (
+                                <span className="text-yellow-400">Pending</span>
+                            )}
+                            </div>
                           </div>
                         </div>
                         <div className="text-right">
@@ -286,6 +382,14 @@ export default function ProjectDetail() {
                             {collab.percentage}%
                           </div>
                         </div>
+                        {collab.collaboratorId === user?.id && collab.status !== 'approved' && (
+                        <button
+                            onClick={() => handleApprove(collab.collaboratorId!)}
+                            className="mt-2 px-3 py-1 text-xs bg-[#00d4ff] text-black rounded-lg hover:bg-[#00e5ff]"
+                        >
+                            Join
+                        </button>
+                        )}
                       </div>
                       <div className="pt-3 border-t border-white/10 flex items-center justify-between text-sm">
                         <span className="text-white/50">Total Earned</span>
@@ -332,10 +436,17 @@ export default function ProjectDetail() {
                 </div>
 
                 <div className="pt-4">
-                  <button className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all font-semibold flex items-center justify-center gap-2">
+                    <button
+                    onClick={() => {
+                        setDepositOpen(true);
+                        setDepositError('');
+                        setDepositSuccess('');
+                    }}
+                    className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all font-semibold flex items-center justify-center gap-2"
+                    >
                     <DollarSign className="w-5 h-5" />
                     Deposit Funds
-                  </button>
+                    </button>
                 </div>
               </div>
             </div>
@@ -409,6 +520,63 @@ export default function ProjectDetail() {
           </div>
         )}
       </div>
+      {depositOpen && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6">
+    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0f1435] p-6 shadow-2xl">
+      <h3 className="font-display text-2xl font-bold mb-2">Deposit Funds</h3>
+      <p className="text-white/60 mb-6">
+        Record a manual deposit into this vault.
+      </p>
+
+      {depositError && (
+        <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {depositError}
+        </div>
+      )}
+
+      {depositSuccess && (
+        <div className="mb-4 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300">
+          {depositSuccess}
+        </div>
+      )}
+
+      <div className="mb-4">
+        <label className="block text-sm text-white/70 mb-2">Amount (USDC)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={depositAmount}
+          onChange={(e) => setDepositAmount(e.target.value)}
+          placeholder="100.00"
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-[#00d4ff]/60"
+        />
+      </div>
+
+      <div className="flex gap-3">
+        <button
+          onClick={() => {
+            setDepositOpen(false);
+            setDepositAmount('');
+            setDepositError('');
+            setDepositSuccess('');
+          }}
+          className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-medium text-white/80 hover:bg-white/10"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={handleDepositFunds}
+          disabled={depositLoading}
+          className="flex-1 rounded-xl bg-gradient-to-r from-[#00d4ff] to-[#0099ff] px-4 py-3 font-semibold text-white disabled:opacity-50"
+        >
+          {depositLoading ? 'Depositing...' : 'Confirm Deposit'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }

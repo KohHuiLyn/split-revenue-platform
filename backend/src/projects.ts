@@ -137,16 +137,17 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     }
 
     // Get collaborator details with earnings
-    const collaborators = collabs.map((c: any) => ({
-      id: c.id,
-      email: c.email,
-      name: c.name,
-      walletAddress: c.wallet_address,
-      percentage: c.split_percentage,
-      status: c.status,
-      joinedAt: c.joined_at,
-    }));
-
+const collaborators = collabs.map((c: any) => ({
+  id: c.id,
+  collaboratorId: c.collaborator_id,
+  email: c.email,
+  name: c.name,
+  walletAddress: c.wallet_address,
+  percentage: c.split_percentage,
+  status: c.status,
+  joinedAt: c.joined_at,
+  earned: Math.round(parseInt(c.total_earned || 0)) / 1000000,
+}));
     // Get vault balance
     const balance = await db.getVaultBalance(parseInt(id));
     const vaultBalance = Math.round((parseInt(balance.total_deposited) - parseInt(balance.total_distributed)) / 100) / 10000;

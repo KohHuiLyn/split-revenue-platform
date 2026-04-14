@@ -64,7 +64,7 @@ export const api = {
     getApprovalStatus: (projectId: number) =>
       apiClient.get(`/api/projects/${projectId}/approval-status`),
     
-    approveVault: (projectId: number, collaboratorId: number) =>
+    approveCollaborator: (projectId: number, collaboratorId: number) =>
       apiClient.post(`/api/projects/${projectId}/collaborators/${collaboratorId}/approve`),
 
     // ============ COLLABORATORS ============
@@ -104,9 +104,8 @@ export const api = {
     getExpectedShares: (projectId: number) =>
       apiClient.get(`/api/projects/${projectId}/expected-shares`),
     
-    recordDeposit: (projectId: number, data: { amount_usdc_micro: number; source?: string }) =>
-      apiClient.post(`/api/projects/${projectId}/deposits`, data),
-    
+    depositFunds: (projectId: number, payload: { amount_usdc_micro: number; source?: string }) =>
+      apiClient.post(`/api/projects/${projectId}/deposits`, payload),
     getDepositHistory: (projectId: number) =>
       apiClient.get(`/api/projects/${projectId}/deposits`),
   },

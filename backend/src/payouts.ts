@@ -162,7 +162,7 @@ router.post('/:projectId/distribute', async (req: AuthRequest, res: Response) =>
     // Get collaborators and split percentages
     const collabsData = await db.getExpectedShares(parseInt(projectId));
     const collabsResult = collabsData.collaborators;
-
+    console.log(collabsData)
     if (collabsResult.length === 0) {
       return res.status(400).json({ error: 'No approved collaborators' });
     }
