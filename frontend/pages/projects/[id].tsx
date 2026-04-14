@@ -6,6 +6,7 @@ import { useRouter } from 'next/router';
 import { motion } from 'motion/react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { BackgroundEffects } from '@/components/BackgroundEffects';
 import {
   ArrowLeft,
   Wallet,
@@ -64,8 +65,8 @@ interface ProjectData {
 export default function ProjectDetail() {
   const router = useRouter();
   const { id } = router.query;
-  
-  const { isAuthenticated, user } = useAuth();
+
+  const { isAuthenticated, user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'transactions'>('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -85,21 +86,23 @@ export default function ProjectDetail() {
   const [settingsSuccess, setSettingsSuccess] = useState('');
   const [pendingSplits, setPendingSplits] = useState<SplitProposal[]>([]);
   const [approvingConfigId, setApprovingConfigId] = useState<number | null>(null);
+
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Don't redirect while auth is still loading (restoring from localStorage)
+    if (!isAuthenticated && !authLoading) {
       router.push('/login');
       return;
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, authLoading, router]);
     const fetchProjectData = async () => {
       try {
         setLoading(true);
         setError('');
         const response = await api.projects.getById(Number(id));
-        
+
         // Transform API response to match UI structure
         const data = response.data;
-        
+
         // Update collaborators with current split percentages if available
         let collaborators = data.collaborators || [];
         if (data.currentSplitConfig?.config_data) {
@@ -107,7 +110,7 @@ export default function ProjectDetail() {
             const configData = typeof data.currentSplitConfig.config_data === 'string'
               ? JSON.parse(data.currentSplitConfig.config_data)
               : data.currentSplitConfig.config_data;
-            
+
             if (configData.percentages && Array.isArray(configData.percentages)) {
               collaborators = collaborators.map((collab: any, index: number) => ({
                 ...collab,
@@ -118,7 +121,7 @@ export default function ProjectDetail() {
             console.warn('Failed to parse split config:', e);
           }
         }
-        
+
         setProjectData({
           id: data.id,
           name: data.name,
@@ -134,7 +137,7 @@ export default function ProjectDetail() {
           createdAt: data.createdAt,
         });
         console.log(JSON.stringify(data));
-        
+
         // Fetch split history to find pending proposals
         await fetchSplitHistory(Number(id));
       } catch (err: any) {
@@ -158,6 +161,8 @@ const fetchSplitHistory = async (projectId: number) => {
     console.log('Split history response:', history);
     console.log('Current split response:', current);
 
+    // Pending splits are inactive configs that haven't been activated yet
+    // They should be newer than the current active split
     let pending: any[] = [];
 
     if (current?.createdAt) {
@@ -168,11 +173,19 @@ const fetchSplitHistory = async (projectId: number) => {
           const splitCreatedAt = new Date(split.createdAt).getTime();
 
           return (
-            !split.isActive &&
+            !split.isActive && // Must be inactive (pending approval)
             split.id &&
             splitCreatedAt > currentCreatedAt
           );
         })
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+    } else if (history.length > 0) {
+      // No current split yet - find any inactive splits
+      pending = history
+        .filter((split: any) => !split.isActive)
         .sort(
           (a: any, b: any) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -264,13 +277,13 @@ const handleDepositFunds = async () => {
 
 const handleOpenSettings = () => {
   if (!projectData) return;
-  
+
   // Initialize edit state with current splits
   const splits: {[key: number]: number} = {};
   projectData.collaborators.forEach(collab => {
     splits[collab.id] = collab.percentage;
   });
-  
+
   setEditingSplits(splits);
   setSettingsOpen(true);
   setSettingsError('');
@@ -307,12 +320,16 @@ const handleProposeSplit = async () => {
     collab => editingSplits[collab.id]
     );
 
+    // If there's already a pending split, pass the configId to update it
+    const pendingConfigId = pendingSplits.length > 0 && pendingSplits[0] ? pendingSplits[0].id : null;
+
     await api.splits.propose(Number(id), {
     collaborators,
     percentages,
+    configId: pendingConfigId,
     });
 
-    setSettingsSuccess('Split proposal submitted successfully');
+    setSettingsSuccess(pendingConfigId ? 'Split proposal updated successfully' : 'Split proposal submitted successfully');
 
     await fetchProjectData();
     await fetchSplitHistory(Number(id));
@@ -383,9 +400,7 @@ const handleApproveSplit = async (configId: number) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#0f1435] to-[#1a1f3f] text-white">
-      {/* Background effects */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(0,212,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,212,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,black,transparent)]" />
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#00d4ff] opacity-5 blur-[120px] rounded-full" />
+      <BackgroundEffects variant="single-orb" />
 
       <div className="relative max-w-7xl mx-auto px-6 py-8">
         {/* Back Button */}
@@ -416,7 +431,14 @@ const handleApproveSplit = async (configId: number) => {
           </div>
 
           <div className="flex gap-3">
-            <button 
+            <button
+              onClick={() => router.push(`/projects/public/${id}`)}
+              className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all font-medium flex items-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              View Public Page
+            </button>
+            <button
               onClick={handleOpenSettings}
               className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all font-medium flex items-center gap-2">
               <Settings className="w-4 h-4" />
@@ -529,21 +551,21 @@ const handleApproveSplit = async (configId: number) => {
                   <Clock className="w-5 h-5" />
                   Pending Revenue Split Proposal
                 </h3>
-                
+
                 {/* Approval Progress */}
                 <div className="mb-6 p-3 bg-black/20 rounded-lg">
                   <div className="text-sm text-yellow-300 font-semibold mb-2">
-                    Approvals: {pendingSplits[0]?.approvalCount || 0} / {pendingSplits[0]?.totalCollaborators || 0}
+                    Approvals: {pendingSplits[0]?.approvalCount || 0} / {projectData.collaborators.length || 0}
                   </div>
                   <div className="w-full bg-white/10 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-yellow-400 h-2 rounded-full transition-all"
-                      style={{ 
-                        width: `${((pendingSplits[0]?.approvalCount || 0) / (pendingSplits[0]?.totalCollaborators || 1)) * 100}%` 
+                      style={{
+                        width: `${((pendingSplits[0]?.approvalCount || 0) / (pendingSplits[0]?.totalCollaborators || 1)) * 100}%`
                       }}
                     />
                   </div>
-                  
+
                   {/* Approved by list */}
                   {pendingSplits[0]?.approvals && pendingSplits[0].approvals.length > 0 && (
                     <div className="mt-3 text-xs text-white/60 space-y-1">
@@ -572,11 +594,11 @@ const handleApproveSplit = async (configId: number) => {
                     const changed = proposedPercentage !== collab.percentage;
 
                     return (
-                      <div 
-                        key={collab.id} 
+                      <div
+                        key={collab.id}
                         className={`p-4 rounded-lg border ${
-                          changed 
-                            ? 'bg-yellow-500/10 border-yellow-400/50' 
+                          changed
+                            ? 'bg-yellow-500/10 border-yellow-400/50'
                             : 'bg-white/5 border-white/10'
                         }`}
                       >
@@ -607,7 +629,7 @@ const handleApproveSplit = async (configId: number) => {
                 ) : (
                   <div className="w-full px-6 py-3 bg-green-500/20 text-green-300 rounded-lg font-semibold flex items-center justify-center gap-2">
                     <Check className="w-4 h-4" />
-                    ✓ You approved this split
+                    You approved this split
                   </div>
                 )}
               </div>
@@ -648,19 +670,21 @@ const handleApproveSplit = async (configId: number) => {
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-display text-2xl font-bold text-[#00d4ff]">
-                            {collab.percentage}%
+                        <div>
+                          <div className="text-right">
+                            <div className="font-display text-2xl font-bold text-[#00d4ff]">
+                              {collab.percentage}%
+                            </div>
                           </div>
+                          {collab.collaboratorId === user?.id && collab.status !== 'approved' && (
+                            <button
+                              onClick={() => handleApprove(collab.collaboratorId!)}
+                              className="mt-2 px-3 py-1 text-xs bg-[#00d4ff] text-black rounded-lg hover:bg-[#00e5ff]"
+                            >
+                              Approve
+                            </button>
+                          )}
                         </div>
-                        {collab.collaboratorId === user?.id && collab.status !== 'approved' && (
-                        <button
-                            onClick={() => handleApprove(collab.collaboratorId!)}
-                            className="mt-2 px-3 py-1 text-xs bg-[#00d4ff] text-black rounded-lg hover:bg-[#00e5ff]"
-                        >
-                            Join
-                        </button>
-                        )}
                       </div>
                       <div className="pt-3 border-t border-white/10 flex items-center justify-between text-sm">
                         <span className="text-white/50">Total Earned</span>

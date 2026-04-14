@@ -54,19 +54,23 @@ export async function getUserByEmail(email: string) {
   const result = await db_instance`
     SELECT id, email, wallet_address, wallet_private_key_encrypted, display_name, created_at
     FROM users
-    WHERE email = ${email}
+    WHERE LOWER(email) = LOWER(${email})
   `;
   return result[0] || null;
 }
 
-export async function getUserById(userId: number) {
+/**
+ * Search users by email (partial match)
+ */
+export async function searchUsersByEmail(emailQuery: string) {
   const db_instance = getDb();
   const result = await db_instance`
-    SELECT id, email, wallet_address, wallet_private_key_encrypted, display_name, created_at
+    SELECT id, email, display_name
     FROM users
-    WHERE id = ${userId}
+    WHERE LOWER(email) LIKE ${'%' + emailQuery.toLowerCase() + '%'}
+    LIMIT 10
   `;
-  return result[0] || null;
+  return result;
 }
 
 export async function getUserByWalletAddress(walletAddress: string) {
@@ -567,9 +571,26 @@ export async function checkIfAllApproved(projectId: number, splitConfigId: numbe
   const totalCount = totalCollaborators[0]?.count || 0;
   const approvalCount = approvals[0]?.count || 0;
   
-  console.log(`Checking approvals: ${approvalCount}/${totalCount} approved`);
-  
-  return totalCount > 0 && approvalCount === totalCount;
+console.log(`Checking approvals: ${approvalCount}/${totalCount} approved`);
+  return approvalCount >= totalCount && totalCount > 0;
+}
+
+export async function updateSplitConfigConfigData(configId: number, configData: any) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    UPDATE split_configs 
+    SET config_data = ${JSON.stringify(configData)}, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${configId}
+    RETURNING *
+  `;
+  return result[0];
+}
+
+export async function clearSplitConfigApprovals(configId: number) {
+  const db_instance = getDb();
+  await db_instance`
+    DELETE FROM split_config_approvals WHERE split_config_id = ${configId}
+  `;
 }
 
 
@@ -811,6 +832,7 @@ export async function getPublicProjects(limit: number = 50, offset: number = 0) 
   const result = await db_instance`
     SELECT 
       p.id,
+      p.creator_id,
       p.name,
       p.description,
       p.cover_image_url,
@@ -820,7 +842,12 @@ export async function getPublicProjects(limit: number = 50, offset: number = 0) 
       u.display_name as creator_name,
       u.profile_picture_url as creator_avatar,
       (SELECT COUNT(*) FROM project_collaborators WHERE project_id = p.id) as collaborator_count,
-      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro
+      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro,
+      (
+        SELECT COALESCE(json_agg(collaborator_id), '[]'::json)
+        FROM project_collaborators
+        WHERE project_id = p.id AND status = 'accepted'
+      ) as collaborator_ids
     FROM projects p
     LEFT JOIN users u ON p.creator_id = u.id
     WHERE p.is_active = true
@@ -839,6 +866,7 @@ export async function getPublicProjectById(projectId: number) {
   const result = await db_instance`
     SELECT 
       p.id,
+      p.creator_id,
       p.name,
       p.description,
       p.cover_image_url,
@@ -848,7 +876,12 @@ export async function getPublicProjectById(projectId: number) {
       u.display_name as creator_name,
       u.profile_picture_url as creator_avatar,
       (SELECT COUNT(*) FROM project_collaborators WHERE project_id = p.id) as collaborator_count,
-      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro
+      COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches WHERE project_id = p.id AND status = 'executed'), 0) as total_raised_micro,
+      (
+        SELECT COALESCE(json_agg(collaborator_id), '[]'::json)
+        FROM project_collaborators
+        WHERE project_id = p.id AND status = 'accepted'
+      ) as collaborator_ids
     FROM projects p
     LEFT JOIN users u ON p.creator_id = u.id
     WHERE p.id = ${projectId} AND p.is_active = true

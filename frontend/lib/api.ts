@@ -143,5 +143,15 @@ export const api = {
       }),
     getProjectById: (id: number) =>
       apiClient.get(`/api/public/projects/${id}`),
+    
+    // User search for collaborator validation
+    searchUsers: (email: string) =>
+      apiClient.get('/api/public/users/search', {
+        params: { email },
+      }),
+    validateUser: (email: string) =>
+      apiClient.get('/api/public/users/validate', {
+        params: { email },
+      }),
   },
 };

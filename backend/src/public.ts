@@ -4,6 +4,67 @@ import * as db from './database';
 const router = express.Router();
 
 /**
+ * GET /api/public/users/search
+ * Search for users by email (for collaborator validation)
+ * No authentication required - but rate limited in production
+ * Query: ?email=xxx - searches for exact or partial match
+ */
+router.get('/users/search', async (req: Request, res: Response) => {
+  try {
+    const email = req.query.email as string;
+    
+    if (!email || email.trim().length < 2) {
+      return res.status(400).json({ error: 'Email query required (min 2 characters)' });
+    }
+
+    const result = await db.searchUsersByEmail(email.trim());
+    
+    // Return matching users (exclude sensitive data)
+    const users = result.map((u: any) => ({
+      email: u.email,
+      displayName: u.display_name,
+    }));
+    
+    res.json({ users });
+  } catch (error: any) {
+    console.error('User search error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/public/users/validate
+ * Validate if a specific email exists (for collaborator validation on blur)
+ * Returns exact match or null
+ */
+router.get('/users/validate', async (req: Request, res: Response) => {
+  try {
+    const email = req.query.email as string;
+    
+    if (!email || email.trim().length === 0) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+
+    const user = await db.getUserByEmail(email.trim().toLowerCase());
+    
+    if (user) {
+      res.json({ 
+        exists: true, 
+        user: {
+          email: user.email,
+          displayName: user.display_name,
+        }
+      });
+    } else {
+      res.json({ exists: false });
+    }
+  } catch (error: any) {
+    console.error('User validation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/public/projects
  * List all active projects for public marketplace/explore page
  * No authentication required
@@ -23,6 +84,8 @@ router.get('/projects', async (req: Request, res: Response) => {
       priceUsd: p.price_display_usd ? parseFloat(p.price_display_usd) : 0,
       creatorName: p.creator_name,
       creatorAvatar: p.creator_avatar,
+      creatorId: p.creator_id,
+      collaboratorIds: p.collaborator_ids || [],
       collaboratorCount: parseInt(p.collaborator_count),
       totalRaised: Math.round(parseInt(p.total_raised_micro || 0)) / 1000000,
       createdAt: p.created_at,
@@ -63,8 +126,10 @@ router.get('/projects/:id', async (req: Request, res: Response) => {
       description: project.description,
       coverImageUrl: project.cover_image_url,
       priceUsd: project.price_display_usd ? parseFloat(project.price_display_usd) : 0,
+      creatorId: project.creator_id,
       creatorName: project.creator_name,
       creatorAvatar: project.creator_avatar,
+      collaboratorIds: project.collaborator_ids || [],
       collaboratorCount: parseInt(project.collaborator_count),
       totalRaised: Math.round(parseInt(project.total_raised_micro || 0)) / 1000000,
       createdAt: project.created_at,

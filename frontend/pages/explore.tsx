@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { motion } from 'motion/react';
 import { Search, Users, DollarSign, Loader, ArrowRight, Sparkles, Globe, Shield } from 'lucide-react';
+import { BackgroundEffects } from '@/components/BackgroundEffects';
 import { api } from '@/lib/api';
 
 interface ProjectData {
@@ -13,8 +14,10 @@ interface ProjectData {
   description: string;
   coverImageUrl: string | null;
   priceUsd: number;
+  creatorId: number;
   creatorName: string | null;
   creatorAvatar: string | null;
+  collaboratorIds: number[];
   collaboratorCount: number;
   totalRaised: number;
   createdAt: string;
@@ -51,15 +54,12 @@ export default function Explore() {
   );
 
   const handleViewProject = (projectId: number) => {
-    router.push(`/projects/${projectId}`);
+    router.push(`/projects/public/${projectId}`);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#0f1435] to-[#1a1f3f] text-white">
-      {/* Background effects */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(0,212,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,212,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,black,transparent)]" />
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#00d4ff] opacity-5 blur-[150px] rounded-full" />
-      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#9b4dca] opacity-5 blur-[150px] rounded-full" />
+      <BackgroundEffects variant="large" />
 
       <div className="relative max-w-7xl mx-auto px-6 py-12">
         {/* Header */}

@@ -7,12 +7,14 @@ import { ArrowLeft, ArrowRight, Plus, X, Check, Users, Shield, Loader, Search } 
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { BackgroundEffects } from '@/components/BackgroundEffects';
 
 interface Collaborator {
   id: string;
   email: string;
   percentage: number;
   displayName?: string;
+  isValid?: boolean; // Track validation status after blur search
 }
 
 export default function CreateProject() {
@@ -26,6 +28,7 @@ export default function CreateProject() {
   const [error, setError] = useState('');
   const [searchResults, setSearchResults] = useState<{[key: string]: {email: string, displayName: string} | undefined}>({});
   const [searchLoading, setSearchLoading] = useState<{[key: string]: boolean}>({});
+  const [invalidEmails, setInvalidEmails] = useState<{[key: string]: boolean}>({}); // Track invalid email state // Track validated collaborators // Debounce on blur
 
   // Initialize with user's email on mount
   useEffect(() => {
@@ -38,7 +41,8 @@ export default function CreateProject() {
   const isStepValid = () => {
     if (step === 1) return projectName.trim().length > 0;
     if (step === 2) {
-      return collaborators.every(c => c.email.trim().length > 0 && c.percentage > 0) && totalPercentage === 100;
+      const hasInvalidEmails = Object.values(invalidEmails).some(invalid => invalid);
+      return collaborators.every(c => c.email.trim().length > 0 && c.percentage > 0) && totalPercentage === 100 && !hasInvalidEmails;
     }
     return true;
   };
@@ -59,7 +63,47 @@ export default function CreateProject() {
     ));
   };
 
-  // Mock user search - in production, this would call a backend endpoint
+  // Validate collaborator - calls backend API to check if user exists
+  const validateCollaborator = async (email: string, collaboratorId: string) => {
+    if (!email || email.trim().length === 0) {
+      setInvalidEmails(prev => ({ ...prev, [collaboratorId]: true }));
+      return;
+    }
+
+    setSearchLoading(prev => ({ ...prev, [collaboratorId]: true }));
+    try {
+      // Call backend API to validate user exists
+      const response = await api.public.validateUser(email.trim());
+      const data = response.data;
+
+      if (data.exists && data.user) {
+        // User found - update display name and mark as valid
+        setSearchResults(prev => ({ ...prev, [collaboratorId]: data.user }));
+        setInvalidEmails(prev => ({ ...prev, [collaboratorId]: false }));
+
+        // Auto-update collaborator with display name
+        setCollaborators(prev => prev.map(c =>
+          c.id === collaboratorId ? { ...c, displayName: data.user.displayName, isValid: true } : c
+        ));
+      } else {
+        // User not found - mark as invalid
+        setInvalidEmails(prev => ({ ...prev, [collaboratorId]: true }));
+        setSearchResults(prev => ({ ...prev, [collaboratorId]: undefined }));
+
+        // Mark collaborator as invalid
+        setCollaborators(prev => prev.map(c =>
+          c.id === collaboratorId ? { ...c, isValid: false } : c
+        ));
+      }
+    } catch (err) {
+      console.error('Search error:', err);
+      setInvalidEmails(prev => ({ ...prev, [collaboratorId]: true }));
+    } finally {
+      setSearchLoading(prev => ({ ...prev, [collaboratorId]: false }));
+    }
+  };
+
+  // Real-time search as user types (for dropdown suggestions)
   const searchUsers = async (email: string, collaboratorId: string) => {
     if (!email || email.length < 2) {
       setSearchResults(prev => ({ ...prev, [collaboratorId]: undefined }));
@@ -68,32 +112,27 @@ export default function CreateProject() {
 
     setSearchLoading(prev => ({ ...prev, [collaboratorId]: true }));
     try {
-      // Simulate API search delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Mock results - replace with actual API call
-      const mockUsers = [
-        { email: 'alice@example.com', displayName: 'Alice Chen' },
-        { email: 'bob@example.com', displayName: 'Bob Wilson' },
-        { email: 'charlie@example.com', displayName: 'Charlie Davis' },
-      ];
+      // Call backend API for user search
+      const response = await api.public.searchUsers(email);
+      const data = response.data;
 
-      const results = mockUsers.filter(u => u.email.includes(email.toLowerCase()));
-      
-      if (results.length > 0) {
-        setSearchResults(prev => ({ 
-          ...prev, 
-          [collaboratorId]: results[0] 
+      if (data.users && data.users.length > 0) {
+        // Show first match as potential user
+        setSearchResults(prev => ({
+          ...prev,
+          [collaboratorId]: data.users[0]
         }));
-        
+
         // Auto-update collaborator with display name if exact match
-        const exactMatch = results.find(r => r.email === email);
+        const exactMatch = data.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
         if (exactMatch) {
           updateCollaborator(collaboratorId, 'email', email);
-          setCollaborators(prev => prev.map(c => 
+          setCollaborators(prev => prev.map(c =>
             c.id === collaboratorId ? { ...c, displayName: exactMatch.displayName } : c
           ));
         }
+      } else {
+        setSearchResults(prev => ({ ...prev, [collaboratorId]: undefined }));
       }
     } catch (err) {
       console.error('Search error:', err);
@@ -147,9 +186,7 @@ export default function CreateProject() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#0f1435] to-[#1a1f3f] text-white">
-      {/* Background effects */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(0,212,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,212,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,black,transparent)]" />
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#00d4ff] opacity-5 blur-[120px] rounded-full" />
+      <BackgroundEffects variant="single-orb" />
 
       <div className="relative max-w-4xl mx-auto px-6 py-8">
         {/* Back Button */}
@@ -265,6 +302,11 @@ export default function CreateProject() {
                                   updateCollaborator(collab.id, 'email', e.target.value);
                                   searchUsers(e.target.value, collab.id);
                                 }}
+                                onBlur={(e) => {
+                                  if (e.target.value && e.target.value.trim().length > 0) {
+                                    validateCollaborator(e.target.value, collab.id);
+                                  }
+                                }}
                                 placeholder="collaborator@email.com"
                                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-[#00d4ff] transition-colors text-white placeholder:text-white/40"
                               />
@@ -300,13 +342,19 @@ export default function CreateProject() {
                           {collab.displayName || searchResults[collab.id]?.displayName}
                         </div>
                       )}
+                      {invalidEmails[collab.id] && (
+                        <div className="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+                          User not found. Please enter a valid collaborator email.
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
 
                 <button
                   onClick={addCollaborator}
-                  className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 border-dashed rounded-xl transition-all flex items-center justify-center gap-2 font-semibold mb-6"
+                  disabled={Object.values(invalidEmails).some(invalid => invalid)}
+                  className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 border-dashed rounded-xl transition-all flex items-center justify-center gap-2 font-semibold mb-6 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-5 h-5" />
                   Add Collaborator
