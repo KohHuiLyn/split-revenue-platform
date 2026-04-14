@@ -141,5 +141,7 @@ export const api = {
       apiClient.get('/api/public/projects', {
         params: { limit, offset },
       }),
+    getProjectById: (id: number) =>
+      apiClient.get(`/api/public/projects/${id}`),
   },
 };
