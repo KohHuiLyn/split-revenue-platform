@@ -34,10 +34,8 @@ export default function WalletTestPage() {
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [faucetLoading, setFaucetLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const [successNote, setSuccessNote] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Redirect if not authenticated
@@ -60,7 +58,7 @@ export default function WalletTestPage() {
     try {
       const infoResponse = await api.wallet.getInfo();
       setWalletInfo(infoResponse.data);
-      
+
       // Only load transactions if account is on-chain
       if (infoResponse.data.wallet?.onChain) {
         try {
@@ -76,30 +74,6 @@ export default function WalletTestPage() {
       setError(err.response?.data?.error || 'Failed to load wallet info');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRequestFaucet = async () => {
-    setFaucetLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      // Request Mock USDC for testing
-      const response = await api.wallet.requestMockUsdc();
-      setSuccess(`✅ ${response.data.message}`);
-      setSuccessNote(
-        'Next step: Deploy the mock_usdc Move module to testnet, then the actual USDC will be minted to your wallet.'
-      );
-
-      // Reload wallet info after 3 seconds
-      setTimeout(() => {
-        loadWalletInfo();
-      }, 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Mock USDC request failed');
-    } finally {
-      setFaucetLoading(false);
     }
   };
 
@@ -122,21 +96,6 @@ export default function WalletTestPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-primary">Splitr</h1>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
-              Dashboard
-            </Link>
-            <Link href="/wallet-test" className="text-primary font-semibold">
-              Wallet Test
-            </Link>
-          </div>
-        </div>
-      </nav>
-
       <div className="max-w-6xl mx-auto px-4 py-8">
         <h2 className="text-3xl font-bold mb-8">Wallet Testing Dashboard</h2>
 
@@ -249,31 +208,19 @@ export default function WalletTestPage() {
                 </div>
               )}
 
-              {/* Mock USDC Button */}
-              <button
-                onClick={handleRequestFaucet}
-                disabled={faucetLoading}
-                className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-50 transition flex items-center justify-center gap-2"
+              {/* Circle Faucet Link */}
+              <a
+                href="https://faucet.circle.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
               >
-                {faucetLoading ? (
-                  <>
-                    <Loader size={20} className="animate-spin" />
-                    Preparing Mock USDC...
-                  </>
-                ) : (
-                  <>💰 Request 100 Mock USDC for Testing</>
-                )}
-              </button>
+                Get 20 USDC from Circle faucet
+                <ExternalLink size={20} />
+              </a>
               <p className="text-xs text-gray-500 mt-2">
-                * Mock USDC is a test token for development. Deploy mock_usdc.move to activate.
+                * Click to open Circle's testnet faucet in a new tab. Request USDC, then return here and refresh your balance.
               </p>
-
-              {/* Success Note */}
-              {successNote && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-blue-700 text-sm">{successNote}</p>
-                </div>
-              )}
             </div>
 
             {/* Transaction History */}

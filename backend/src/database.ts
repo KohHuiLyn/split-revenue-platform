@@ -394,7 +394,9 @@ export async function getProjectCollaboratorsDetail(projectId: number) {
       pc.status,
       pc.split_percentage,
       pc.joined_at,
-      pc.created_at
+      pc.created_at,
+      COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history 
+                WHERE recipient_id = pc.collaborator_id AND project_id = ${projectId} AND status = 'success'), 0) as total_earned
     FROM project_collaborators pc
     LEFT JOIN users u ON pc.collaborator_id = u.id
     WHERE pc.project_id = ${projectId}
@@ -521,7 +523,7 @@ export async function getVaultBalance(projectId: number) {
   const result = await db_instance`
     SELECT 
       COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches 
-                WHERE project_id = ${projectId} AND status = 'executed'), 0) as total_deposited,
+                WHERE project_id = ${projectId} AND status = 'executed' AND num_recipients = 0), 0) as total_deposited,
       COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history 
                 WHERE project_id = ${projectId} AND status = 'success'), 0) as total_distributed,
       COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history 
@@ -537,7 +539,7 @@ export async function getExpectedShares(projectId: number) {
   const balanceResult = await db_instance`
     SELECT 
       COALESCE((SELECT SUM(total_amount_usdc_micro) FROM payout_batches 
-                WHERE project_id = ${projectId} AND status = 'executed'), 0) -
+                WHERE project_id = ${projectId} AND status = 'executed' AND num_recipients = 0), 0) -
       COALESCE((SELECT SUM(amount_usdc_micro) FROM payout_history 
                 WHERE project_id = ${projectId} AND status = 'success'), 0) as balance_micro
     FROM projects WHERE id = ${projectId}

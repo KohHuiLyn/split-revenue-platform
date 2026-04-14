@@ -17,11 +17,29 @@ let client: Aptos;
 let adminAccount: Ed25519Account;
 
 const MODULE_ADDRESS = process.env.APTOS_MODULE_ADDRESS || "0x1";
-const USDC_COIN_TYPE = `${MODULE_ADDRESS}::usdc::USDC`;
+
+// Circle USDC addresses per network (from Circle docs)
+const USDC_MAINNET = "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b";
+const USDC_TESTNET = "0x69091fbab5f7d635ee7ac5098cf0c1efbe31d68fec0f2cd565e8d168daf52832";
+/**
+ * Get the USDC coin type for the current network
+ * Dynamically selects based on APTOS_NODE_URL
+ */
+export function getUsdcCoinType(): string {
+  const nodeUrl = process.env.APTOS_NODE_URL || "";
+
+  if (nodeUrl.includes("mainnet")) {
+    return `${USDC_MAINNET}`;
+  }
+  // Default to testnet
+  return `${USDC_TESTNET}`;
+}
+
+const USDC_COIN_TYPE = getUsdcCoinType();
 
 export async function initializeAptosClient() {
   const nodeUrl = process.env.APTOS_NODE_URL || "https://testnet.api.aptos.dev/v1";
-  
+
   // Create AptosConfig and Aptos client (new SDK pattern)
   const config = new AptosConfig({
     network: Network.TESTNET,
@@ -249,27 +267,34 @@ export async function getSplitConfigOnChain(projectId: bigint): Promise<any> {
 }
 
 /**
- * Check account USDC balance
+ * Check account USDC balance using Fungible Asset API
  */
 export async function getUsdcBalance(address: string): Promise<bigint> {
-  const aptos = getClient();
+  const client = getClient();
 
   try {
-    const resources = await aptos.account.getAccountResources({
-      accountAddress: AccountAddress.from(address),
+    // Use getCurrentFungibleAssetBalances with filter for USDC asset type
+    const balances = await client.getCurrentFungibleAssetBalances({
+      options: {
+        where: {
+          owner_address: { _eq: address },
+          asset_type: { _eq: getUsdcCoinType() },
+        },
+        limit: 1,
+      },
     });
-    const coinsResource = resources.find(
-      (r: any) => r.type === `0x1::coin::CoinStore<${USDC_COIN_TYPE}>`
-    );
 
-    if (!coinsResource) {
+    if (!balances || balances.length === 0) {
       return BigInt(0);
     }
 
-    const balance = (coinsResource.data as any)?.coin?.value || 0;
-    return BigInt(balance);
-  } catch (error) {
-    console.error("❌ Failed to get USDC balance:", error);
+    return BigInt(balances[0].amount);
+  } catch (error: any) {
+    // Account might not have USDC yet - that's OK
+    if (error.status === 404 || error.message?.includes("404") || error.message?.includes("not found")) {
+      return BigInt(0);
+    }
+    console.error("❌ Failed to get USDC balance:", error.message || error);
     return BigInt(0);
   }
 }
