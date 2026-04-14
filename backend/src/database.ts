@@ -571,9 +571,26 @@ export async function checkIfAllApproved(projectId: number, splitConfigId: numbe
   const totalCount = totalCollaborators[0]?.count || 0;
   const approvalCount = approvals[0]?.count || 0;
   
-  console.log(`Checking approvals: ${approvalCount}/${totalCount} approved`);
-  
-  return totalCount > 0 && approvalCount === totalCount;
+console.log(`Checking approvals: ${approvalCount}/${totalCount} approved`);
+  return approvalCount >= totalCount && totalCount > 0;
+}
+
+export async function updateSplitConfigConfigData(configId: number, configData: any) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    UPDATE split_configs 
+    SET config_data = ${JSON.stringify(configData)}, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${configId}
+    RETURNING *
+  `;
+  return result[0];
+}
+
+export async function clearSplitConfigApprovals(configId: number) {
+  const db_instance = getDb();
+  await db_instance`
+    DELETE FROM split_config_approvals WHERE split_config_id = ${configId}
+  `;
 }
 
 

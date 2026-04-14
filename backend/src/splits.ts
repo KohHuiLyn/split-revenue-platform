@@ -94,12 +94,14 @@ router.get('/:projectId/splits/history', async (req: AuthRequest, res: Response)
  * POST /api/projects/:projectId/splits/propose
  * Story 7.1 - Propose split change
  * Requires split_configs_proposals table
+ * 
+ * Optional body param: configId - if provided, updates existing pending split instead of creating new
  */
 router.post('/:projectId/splits/propose', async (req: AuthRequest, res: Response) => {
   try {
     const { projectId } = req.params;
     const userId = req.userId;
-    const { collaborators, percentages } = req.body;
+    const { collaborators, percentages, configId } = req.body;
 
     if (!collaborators || !percentages) {
       return res.status(400).json({ error: 'Collaborators and percentages required' });
@@ -117,6 +119,27 @@ router.post('/:projectId/splits/propose', async (req: AuthRequest, res: Response
 
     if (!isCollaborator) {
       return res.status(403).json({ error: 'User is not a collaborator' });
+    }
+
+    // If configId provided, update existing pending split instead of creating new one
+    if (configId) {
+      // Update the config data
+      await db.updateSplitConfigConfigData(parseInt(configId), { collaborators, percentages });
+      // Clear all previous approvals (requiring everyone to approve again)
+      await db.clearSplitConfigApprovals(parseInt(configId));
+      // Auto-approve for the proposer again
+      await db.approveSplitConfig(parseInt(configId), userId);
+
+      return res.json({
+        success: true,
+        proposal: {
+          id: configId,
+          status: 'pending_approval',
+          collaborators,
+          percentages,
+        },
+        message: 'Split proposal updated. Awaiting collaborator approvals.',
+      });
     }
 
     // Create split config (not active yet)

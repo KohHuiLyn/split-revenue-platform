@@ -159,6 +159,8 @@ const fetchSplitHistory = async (projectId: number) => {
     console.log('Split history response:', history);
     console.log('Current split response:', current);
 
+    // Pending splits are inactive configs that haven't been activated yet
+    // They should be newer than the current active split
     let pending: any[] = [];
 
     if (current?.createdAt) {
@@ -169,11 +171,19 @@ const fetchSplitHistory = async (projectId: number) => {
           const splitCreatedAt = new Date(split.createdAt).getTime();
 
           return (
-            split.isActive &&
+            !split.isActive && // Must be inactive (pending approval)
             split.id &&
             splitCreatedAt > currentCreatedAt
           );
         })
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+    } else if (history.length > 0) {
+      // No current split yet - find any inactive splits
+      pending = history
+        .filter((split: any) => !split.isActive)
         .sort(
           (a: any, b: any) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -308,12 +318,16 @@ const handleProposeSplit = async () => {
     collab => editingSplits[collab.id]
     );
 
+    // If there's already a pending split, pass the configId to update it
+    const pendingConfigId = pendingSplits.length > 0 && pendingSplits[0] ? pendingSplits[0].id : null;
+
     await api.splits.propose(Number(id), {
     collaborators,
     percentages,
+    configId: pendingConfigId,
     });
 
-    setSettingsSuccess('Split proposal submitted successfully');
+    setSettingsSuccess(pendingConfigId ? 'Split proposal updated successfully' : 'Split proposal submitted successfully');
 
     await fetchProjectData();
     await fetchSplitHistory(Number(id));
@@ -539,7 +553,7 @@ const handleApproveSplit = async (configId: number) => {
                 {/* Approval Progress */}
                 <div className="mb-6 p-3 bg-black/20 rounded-lg">
                   <div className="text-sm text-yellow-300 font-semibold mb-2">
-                    Approvals: {pendingSplits[0]?.approvalCount || 0} / {pendingSplits[0]?.totalCollaborators || 0}
+                    Approvals: {pendingSplits[0]?.approvalCount || 0} / {projectData.collaborators.length || 0}
                   </div>
                   <div className="w-full bg-white/10 rounded-full h-2">
                     <div
@@ -613,7 +627,7 @@ const handleApproveSplit = async (configId: number) => {
                 ) : (
                   <div className="w-full px-6 py-3 bg-green-500/20 text-green-300 rounded-lg font-semibold flex items-center justify-center gap-2">
                     <Check className="w-4 h-4" />
-                    ✓ You approved this split
+                    You approved this split
                   </div>
                 )}
               </div>
