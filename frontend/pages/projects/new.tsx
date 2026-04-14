@@ -197,7 +197,7 @@ export default function CreateProject() {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                <h2 className="font-['Epilogue'] text-3xl font-bold mb-2">Create Revenue Vault</h2>
+                <h2 className="font-display text-3xl font-bold mb-2">Create Revenue Vault</h2>
                 <p className="text-white/60 mb-8">Set up your project details</p>
 
                 <div className="space-y-6">
@@ -248,7 +248,7 @@ export default function CreateProject() {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                <h2 className="font-['Epilogue'] text-3xl font-bold mb-2">Add Collaborators</h2>
+                <h2 className="font-display text-3xl font-bold mb-2">Add Collaborators</h2>
                 <p className="text-white/60 mb-8">Define revenue split percentages</p>
 
                 <div className="space-y-4 mb-6">
@@ -322,7 +322,7 @@ export default function CreateProject() {
                 }`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-semibold">Total Split</span>
-                    <span className={`font-['Epilogue'] text-2xl font-bold ${
+                    <span className={`font-display text-2xl font-bold ${
                       totalPercentage === 100 ? 'text-green-400' : totalPercentage > 100 ? 'text-red-400' : 'text-white'
                     }`}>
                       {totalPercentage}%
@@ -354,7 +354,7 @@ export default function CreateProject() {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                <h2 className="font-['Epilogue'] text-3xl font-bold mb-2">Review & Create</h2>
+                <h2 className="font-display text-3xl font-bold mb-2">Review & Create</h2>
                 <p className="text-white/60 mb-8">Confirm your vault details</p>
 
                 <div className="space-y-6">
@@ -364,7 +364,7 @@ export default function CreateProject() {
                     <div className="space-y-3">
                       <div>
                         <div className="text-sm text-white/50 mb-1">Name</div>
-                        <div className="font-['Epilogue'] text-xl font-bold">{projectName}</div>
+                        <div className="font-display text-xl font-bold">{projectName}</div>
                       </div>
                       {description && (
                         <div>
@@ -385,7 +385,7 @@ export default function CreateProject() {
                       {collaborators.map((collab) => (
                         <div key={collab.id} className="flex items-center justify-between py-2">
                           <span className="text-white/80">{collab.email}</span>
-                          <span className="font-['Epilogue'] text-lg font-bold text-[#00d4ff]">
+                          <span className="font-display text-lg font-bold text-[#00d4ff]">
                             {collab.percentage}%
                           </span>
                         </div>

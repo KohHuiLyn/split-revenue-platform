@@ -93,7 +93,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-12">
           <div>
-            <h1 className="font-['Epilogue'] text-4xl font-bold mb-2">
+            <h1 className="font-display text-4xl font-bold mb-2">
               Welcome, {user?.displayName}
             </h1>
             <p className="text-white/60">
@@ -174,7 +174,7 @@ export default function DashboardPage() {
                 <span>Live</span>
               </div>
             </div>
-            <div className="text-3xl font-['Epilogue'] font-bold mb-1">
+            <div className="text-3xl font-display font-bold mb-1">
               ${stats.totalPayouts.toLocaleString()}
             </div>
             <div className="text-white/60 text-sm">Successful Payouts</div>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                 <Clock className="w-6 h-6 text-[#ff6b4a]" />
               </div>
             </div>
-            <div className="text-3xl font-['Epilogue'] font-bold mb-1">
+            <div className="text-3xl font-display font-bold mb-1">
               ${stats.pendingPayouts.toLocaleString()}
             </div>
             <div className="text-white/60 text-sm">Pending Payouts</div>
@@ -198,7 +198,7 @@ export default function DashboardPage() {
                 <Users className="w-6 h-6 text-[#ffd700]" />
               </div>
             </div>
-            <div className="text-3xl font-['Epilogue'] font-bold mb-1">
+            <div className="text-3xl font-display font-bold mb-1">
               {stats.uniqueProjects}
             </div>
             <div className="text-white/60 text-sm">Projects with Payouts</div>
@@ -208,7 +208,7 @@ export default function DashboardPage() {
         {/* Recent Payouts */}
         <div className="mb-12">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="font-['Epilogue'] text-2xl font-bold">Recent Payouts</h2>
+            <h2 className="font-display text-2xl font-bold">Recent Payouts</h2>
             <Link
               href="/payouts"
               className="text-[#00d4ff] hover:text-[#6ee7ff] transition-colors font-medium"
@@ -232,7 +232,7 @@ export default function DashboardPage() {
               <div className="w-20 h-20 mx-auto mb-6 bg-white/5 rounded-full flex items-center justify-center">
                 <Wallet className="w-10 h-10 text-white/40" />
               </div>
-              <h3 className="font-['Epilogue'] text-2xl font-bold mb-2">No payouts yet</h3>
+              <h3 className="font-display text-2xl font-bold mb-2">No payouts yet</h3>
               <p className="text-white/60 mb-6">
                 Create a project and trigger your first revenue split.
               </p>
@@ -262,7 +262,7 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-6">
                       <div>
                         <div className="text-white/50 text-sm mb-1">Amount</div>
-                        <div className="font-['Epilogue'] text-xl font-bold text-[#00d4ff]">
+                        <div className="font-display text-xl font-bold text-[#00d4ff]">
                           ${Number(payout.amount).toLocaleString()}
                         </div>
                       </div>

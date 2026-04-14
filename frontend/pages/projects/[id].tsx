@@ -150,7 +150,7 @@ export default function ProjectDetail() {
               </svg>
             </div>
             <div>
-              <h1 className="font-['Epilogue'] text-4xl font-bold mb-2">{projectData.name}</h1>
+              <h1 className="font-display text-4xl font-bold mb-2">{projectData.name}</h1>
               <p className="text-white/60">{projectData.description}</p>
               <div className="flex items-center gap-3 mt-3">
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm">
@@ -188,7 +188,7 @@ export default function ProjectDetail() {
               </button>
             </div>
             <div className="text-sm text-white/50 mb-1">Pending Distribution</div>
-            <div className="text-3xl font-['Epilogue'] font-bold text-[#00d4ff]">
+            <div className="text-3xl font-display font-bold text-[#00d4ff]">
               ${projectData.vaultBalance.toLocaleString()}
             </div>
           </motion.div>
@@ -205,7 +205,7 @@ export default function ProjectDetail() {
               </div>
             </div>
             <div className="text-sm text-white/50 mb-1">Total Revenue</div>
-            <div className="text-3xl font-['Epilogue'] font-bold">
+            <div className="text-3xl font-display font-bold">
               ${projectData.totalRevenue.toLocaleString()}
             </div>
           </motion.div>
@@ -222,7 +222,7 @@ export default function ProjectDetail() {
               </div>
             </div>
             <div className="text-sm text-white/50 mb-1">Collaborators</div>
-            <div className="text-3xl font-['Epilogue'] font-bold">
+            <div className="text-3xl font-display font-bold">
               {projectData.collaborators.length}
             </div>
           </motion.div>
@@ -257,7 +257,7 @@ export default function ProjectDetail() {
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Collaborators */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-              <h3 className="font-['Epilogue'] text-xl font-bold mb-6 flex items-center gap-2">
+              <h3 className="font-display text-xl font-bold mb-6 flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 Revenue Split
               </h3>
@@ -282,7 +282,7 @@ export default function ProjectDetail() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-['Epilogue'] text-2xl font-bold text-[#00d4ff]">
+                          <div className="font-display text-2xl font-bold text-[#00d4ff]">
                             {collab.percentage}%
                           </div>
                         </div>
@@ -301,7 +301,7 @@ export default function ProjectDetail() {
 
             {/* Vault Info */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-              <h3 className="font-['Epilogue'] text-xl font-bold mb-6">Vault Information</h3>
+              <h3 className="font-display text-xl font-bold mb-6">Vault Information</h3>
               <div className="space-y-4">
                 <div className="p-4 bg-white/5 border border-white/10 rounded-xl">
                   <div className="text-sm text-white/50 mb-1">Contract Address</div>
@@ -344,7 +344,7 @@ export default function ProjectDetail() {
 
         {activeTab === 'transactions' && (
           <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-            <h3 className="font-['Epilogue'] text-xl font-bold mb-6 flex items-center gap-2">
+            <h3 className="font-display text-xl font-bold mb-6 flex items-center gap-2">
               <History className="w-5 h-5" />
               Transaction History
             </h3>
@@ -383,7 +383,7 @@ export default function ProjectDetail() {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <div className={`font-['Epilogue'] text-xl font-bold ${
+                          <div className={`font-display text-xl font-bold ${
                             tx.type === 'deposit' ? 'text-green-400' : 'text-white'
                           }`}>
                             {tx.type === 'deposit' ? '+' : '-'}${tx.amount.toLocaleString()}
