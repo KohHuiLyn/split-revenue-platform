@@ -13,6 +13,7 @@ import walletRoutes from "./wallet-info";
 import projectRoutes from "./projects";
 import splitsRoutes from "./splits";
 import payoutsRoutes from "./payouts";
+import publicRoutes from "./public";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,6 +78,9 @@ async function bootstrap() {
     // Payouts routes (protected)
     app.use("/api/projects", authMiddleware, payoutsRoutes);
     app.use("/api/payouts", authMiddleware, payoutsRoutes);
+
+    // Public routes (no auth required)
+    app.use("/api/public", publicRoutes);
 
     // Error handler
     app.use((err: any, req: any, res: any, next: any) => {
