@@ -169,7 +169,7 @@ const fetchSplitHistory = async (projectId: number) => {
           const splitCreatedAt = new Date(split.createdAt).getTime();
 
           return (
-            !split.isActive &&
+            split.isActive &&
             split.id &&
             splitCreatedAt > currentCreatedAt
           );
