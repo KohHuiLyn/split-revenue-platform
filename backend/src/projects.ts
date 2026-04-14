@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import * as db from './database';
 import { getAccountFromEncrypted, isValidAptosAddress } from './wallet';
-import { createVaultOnChain, getVaultBalanceOnChain } from './aptos-client';
+import { createVaultOnChain, getVaultBalanceOnChain, getVaultTotalsOnChain } from './aptos-client';
 
 const router = express.Router();
 
@@ -223,10 +223,9 @@ const collaborators = collabs.map((c: any) => ({
   joinedAt: c.joined_at,
   earned: Math.round(parseInt(c.total_earned || 0)) / 1000000,
 }));
-    // Get vault balance
-    const balance = await getVaultBalanceOnChain(BigInt(id));
-    const vaultBalance = Math.round((parseInt(balance.total_deposited) - parseInt(balance.total_distributed)) / 100) / 10000;
-    const totalRevenue = Math.round(parseInt(balance.total_deposited) / 100) / 10000;
+    // Get vault balance (in micro units) and total revenue (in USDC)
+    const vaultBalance = Number(await getVaultBalanceOnChain(BigInt(id))) / 1_000_000;
+    const totalRevenue = Number((await getVaultTotalsOnChain(BigInt(id))).totalDeposited);
 
     // Get transactions
     const transactions = await db.getProjectTransactionHistory(parseInt(id));
