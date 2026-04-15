@@ -38,10 +38,10 @@ export default function PaymentPage() {
   const router = useRouter();
   const { query } = router;
   const { user, isAuthenticated, loading: authLoading } = useAuth();
-  
+
   const [payment, setPayment] = useState<PaymentState>({
     step: 'review',
-    amount: 25, // Default amount for prototype
+    amount: 1, // Default amount for prototype
     projectId: 0,
     projectName: '',
     walletInfo: null,
@@ -56,18 +56,18 @@ export default function PaymentPage() {
       router.push('/login');
       return;
     }
-    
+
     // Load project and wallet info
     if (isAuthenticated && query.projectId) {
       const projectId = Number(query.projectId);
       const projectName = query.projectName as string || 'Unknown Project';
-      
+
       setPayment(prev => ({
         ...prev,
         projectId,
         projectName,
       }));
-      
+
       loadWalletInfo();
     }
   }, [authLoading, isAuthenticated, query, router]);
@@ -98,18 +98,18 @@ export default function PaymentPage() {
     setLoading(true);
     setError('');
     setSuccess('');
-    
+
     try {
       // Refresh wallet info to get latest balance
       const infoResponse = await api.wallet.getInfo();
       const walletInfo = infoResponse.data;
-      
+
       // For prototype: just show success since we can't do actual on-chain transfer
       setSuccess('Payment confirmed! The project has been funded.');
-      setPayment(prev => ({ 
-        ...prev, 
+      setPayment(prev => ({
+        ...prev,
         step: 'complete',
-        walletInfo 
+        walletInfo
       }));
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Payment failed');
@@ -187,8 +187,8 @@ export default function PaymentPage() {
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-white/60">Balance</span>
                   <span className={`text-xl font-bold ${
-                    parseFloat(payment.walletInfo.usdc) > 0 
-                      ? 'text-green-400' 
+                    parseFloat(payment.walletInfo.usdc) > 0
+                      ? 'text-green-400'
                       : 'text-orange-400'
                   }`}>
                     ${payment.walletInfo.usdc} USDC
@@ -255,7 +255,7 @@ export default function PaymentPage() {
               <p className="text-white/60 mb-4">
                 To fund this project, you need USDC in your wallet. Use Circle's testnet faucet to get free USDC for testing.
               </p>
-              
+
               {/* Wallet Address */}
               {payment.walletInfo && (
                 <div className="mb-4 p-4 bg-white/5 rounded-lg">
@@ -292,7 +292,7 @@ export default function PaymentPage() {
                 <li>Click "Refresh Balance" below</li>
                 <li>Once funded, complete your payment</li>
               </ol>
-              
+
               <button
                 onClick={handleRefreshBalance}
                 disabled={loading}
