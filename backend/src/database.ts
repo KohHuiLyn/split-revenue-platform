@@ -718,6 +718,21 @@ export async function createDepositBatch(projectId: number, amountUsdcMicro: num
   return result[0];
 }
 
+export async function updateDepositBatchWithOnChainInfo(
+  batchId: number,
+  txHash: string,
+  onChainBatchId: bigint
+) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    UPDATE payout_batches
+    SET on_chain_batch_id = ${BigInt(onChainBatchId).toString()}, executed_at = CURRENT_TIMESTAMP
+    WHERE id = ${batchId}
+    RETURNING *
+  `;
+  return result[0];
+}
+
 export async function getDepositHistory(projectId: number) {
   const db_instance = getDb();
   const result = await db_instance`
@@ -766,6 +781,21 @@ export async function recordPayoutHistory(
   const result = await db_instance`
     INSERT INTO payout_history (batch_id, project_id, recipient_id, amount_usdc_micro, on_chain_record_id, status)
     VALUES (${batchId}, ${projectId}, ${recipientId}, ${amountUsdcMicro}, ${onChainRecordId || null}, 'success')
+    RETURNING *
+  `;
+  return result[0];
+}
+
+export async function updatePayoutHistoryWithOnChainInfo(
+  payoutId: number,
+  onChainRecordId: bigint,
+  txHash: string
+) {
+  const db_instance = getDb();
+  const result = await db_instance`
+    UPDATE payout_history
+    SET on_chain_record_id = ${BigInt(onChainRecordId).toString()}, on_chain_tx_hash = ${txHash}, status = 'success'
+    WHERE id = ${payoutId}
     RETURNING *
   `;
   return result[0];

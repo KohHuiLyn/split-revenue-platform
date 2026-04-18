@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import * as db from './database';
 import { getAccountFromEncrypted, isValidAptosAddress } from './wallet';
-import { createVaultOnChain, getVaultBalanceOnChain, getVaultTotalsOnChain } from './aptos-client';
+import { createVaultOnChain, getAdminAccount, getVaultBalanceOnChain, getVaultTotalsOnChain } from './aptos-client';
 
 const router = express.Router();
 
@@ -123,8 +123,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       );
     }
 
+    // use admin account to create vault on chain
     const createVaultTxHash = await createVaultOnChain(
-      creatorSigner,
+      getAdminAccount(),
       BigInt(projectId),
       resolvedCollaborators.map(c => c.address),
       splitBps

@@ -1,5 +1,11 @@
 import express, { Request, Response } from 'express';
 import * as db from './database';
+import { 
+  depositRevenueOnChain, 
+  getAdminAccount, 
+  executePayoutOnChain,
+  getVaultBalanceOnChain 
+} from './aptos-client';
 
 const router = express.Router();
 interface AuthRequest extends Request {
@@ -83,21 +89,43 @@ router.post('/:projectId/deposits', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Valid amount is required' });
     }
 
-    // Create payout batch for deposit
+    // Create payout batch for deposit in database
     const batch = await db.createDepositBatch(parseInt(projectId), amount_usdc_micro);
 
-    res.json({
-      success: true,
-      batch: {
-        id: batch.id,
-        projectId: batch.project_id,
-        amount: Math.round(parseInt(batch.total_amount_usdc_micro)) / 1000000,
-        source,
-        status: batch.status,
-        createdAt: batch.created_at,
-      },
-      message: 'Deposit recorded',
-    });
+    try {
+      // Execute deposit transaction on Aptos blockchain
+      const adminAccount = getAdminAccount();
+      const txHash = await depositRevenueOnChain(
+        adminAccount,
+        BigInt(projectId),
+        BigInt(amount_usdc_micro)
+      );
+
+      // Update batch with on-chain transaction info
+      await db.updateDepositBatchWithOnChainInfo(batch.id, txHash, BigInt(batch.id));
+
+      res.json({
+        success: true,
+        batch: {
+          id: batch.id,
+          projectId: batch.project_id,
+          amount: Math.round(parseInt(batch.total_amount_usdc_micro)) / 1000000,
+          source,
+          status: 'executed',
+          txHash,
+          createdAt: batch.created_at,
+        },
+        message: 'Deposit recorded and executed on-chain',
+      });
+    } catch (onChainError: any) {
+      console.error('On-chain deposit error:', onChainError);
+      // Return error but batch record still exists in database
+      res.status(500).json({
+        error: 'Failed to execute deposit on-chain',
+        details: onChainError.message,
+        batchId: batch.id,
+      });
+    }
   } catch (error: any) {
     console.error('Record deposit error:', error);
     res.status(500).json({ error: error.message });
@@ -151,9 +179,8 @@ router.post('/:projectId/distribute', async (req: AuthRequest, res: Response) =>
       return res.status(403).json({ error: 'User is not a collaborator' });
     }
 
-    // Get vault balance
-    const balance = await db.getVaultBalance(parseInt(projectId));
-    const vaultBalanceMicro = parseInt(balance.total_deposited) - parseInt(balance.total_distributed);
+    // Get vault balance from on-chain (source of truth)
+    const vaultBalanceMicro = Number(await getVaultBalanceOnChain(BigInt(projectId)));
 
     if (vaultBalanceMicro <= 0) {
       return res.status(400).json({ error: 'No funds available for distribution' });
@@ -171,19 +198,48 @@ router.post('/:projectId/distribute', async (req: AuthRequest, res: Response) =>
     const batch = await db.createPayoutDistribution(parseInt(projectId), vaultBalanceMicro, collabsResult.length);
     const batchId = batch.id;
 
-    // Create individual payouts
+    // Create individual payouts and execute on-chain
     const payouts = [];
+    const adminAccount = getAdminAccount();
+
     for (const collab of collabsResult) {
       const payoutAmount = Math.round((vaultBalanceMicro * collab.split_percentage) / 100);
 
-      await db.recordPayoutHistory(batchId, parseInt(projectId), collab.collaborator_id, payoutAmount);
+      // Record payout in database
+      const payoutRecord = await db.recordPayoutHistory(batchId, parseInt(projectId), collab.collaborator_id, payoutAmount);
 
-      payouts.push({
-        recipientId: collab.collaborator_id,
-        walletAddress: 'N/A',
-        amount: Math.round(payoutAmount) / 1000000,
-        percentage: collab.split_percentage,
-      });
+      try {
+        // Execute payout on Aptos blockchain
+        const payoutReference = `batch_${batchId}_collab_${collab.collaborator_id}`;
+        const txHash = await executePayoutOnChain(
+          adminAccount,
+          BigInt(projectId),
+          BigInt(payoutAmount),
+          payoutReference
+        );
+
+        // Update payout record with transaction hash
+        await db.updatePayoutHistoryWithOnChainInfo(payoutRecord.id, BigInt(1), txHash);
+
+        payouts.push({
+          recipientId: collab.collaborator_id,
+          walletAddress: 'N/A',
+          amount: Math.round(payoutAmount) / 1000000,
+          percentage: collab.split_percentage,
+          status: 'executed',
+          txHash,
+        });
+      } catch (onChainError: any) {
+        console.error(`On-chain payout error for collaborator ${collab.collaborator_id}:`, onChainError);
+        payouts.push({
+          recipientId: collab.collaborator_id,
+          walletAddress: 'N/A',
+          amount: Math.round(payoutAmount) / 1000000,
+          percentage: collab.split_percentage,
+          status: 'failed',
+          error: onChainError.message,
+        });
+      }
     }
 
     // Mark batch as executed
