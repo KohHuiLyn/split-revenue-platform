@@ -243,6 +243,113 @@ export async function createVaultOnChain(
     [projectId.toString(), collaborators, splitPercentagesBps]
   );
 }
+export async function depositRevenueWithFeeSponsoredOnChain(
+  depositor: Ed25519Account,
+  feePayer: Ed25519Account,
+  projectId: bigint,
+  grossAmountUsdcMicro: bigint,
+  feeBps: bigint,
+  feeRecipient: string
+): Promise<string> {
+  const aptos = getClient();
+
+  const transaction = await aptos.transaction.build.simple({
+    sender: depositor.accountAddress,
+    withFeePayer: true,
+    data: {
+      function: `${MODULE_ADDRESS}::vault_factory::deposit_revenue_with_fee`,
+      functionArguments: [
+        projectId.toString(),
+        grossAmountUsdcMicro.toString(),
+        feeBps.toString(),
+        feeRecipient,
+      ],
+    },
+  });
+
+  transaction.feePayerAddress = feePayer.accountAddress;
+
+  const senderAuthenticator = aptos.transaction.sign({
+    signer: depositor,
+    transaction,
+  });
+
+  const feePayerAuthenticator = aptos.transaction.signAsFeePayer({
+    signer: feePayer,
+    transaction,
+  });
+
+  const committedTransaction = await aptos.transaction.submit.simple({
+    transaction,
+    senderAuthenticator,
+    feePayerAuthenticator,
+  });
+
+  const executedTransaction = await aptos.waitForTransaction({
+    transactionHash: committedTransaction.hash,
+  });
+
+  if (!executedTransaction.success) {
+    throw new Error(
+      `Transaction ${committedTransaction.hash} failed: ${executedTransaction.vm_status}`
+    );
+  }
+
+  return committedTransaction.hash;
+}
+export async function depositRevenueSponsoredOnChain(
+  depositor: Ed25519Account,
+  feePayer: Ed25519Account,
+  projectId: bigint,
+  amountUsdcMicro: bigint
+): Promise<string> {
+  const aptos = getClient();
+
+  // 1. Build transaction with fee payer enabled
+  const transaction = await aptos.transaction.build.simple({
+    sender: depositor.accountAddress,
+    withFeePayer: true,
+    data: {
+      function: `${MODULE_ADDRESS}::vault_factory::deposit_revenue`,
+      functionArguments: [projectId.toString(), amountUsdcMicro.toString()],
+    },
+  });
+
+  // Optional but useful for debugging
+  transaction.feePayerAddress = feePayer.accountAddress;
+
+  // 2. Sender signs as sender
+  const senderAuthenticator = aptos.transaction.sign({
+    signer: depositor,
+    transaction,
+  });
+
+  // 3. Admin signs as fee payer
+  const feePayerAuthenticator = aptos.transaction.signAsFeePayer({
+    signer: feePayer,
+    transaction,
+  });
+
+  // 4. Submit with both signatures
+  const committedTransaction = await aptos.transaction.submit.simple({
+    transaction,
+    senderAuthenticator,
+    feePayerAuthenticator,
+  });
+
+  // 5. Wait for execution
+  const executedTransaction = await aptos.waitForTransaction({
+    transactionHash: committedTransaction.hash,
+  });
+
+  if (!executedTransaction.success) {
+    throw new Error(
+      `Transaction ${committedTransaction.hash} failed: ${executedTransaction.vm_status}`
+    );
+  }
+
+  return committedTransaction.hash;
+}
 
 export async function depositRevenueOnChain(
   signer: Ed25519Account,

@@ -4,8 +4,11 @@ import {
   depositRevenueOnChain, 
   getAdminAccount, 
   executePayoutOnChain,
-  getVaultBalanceOnChain 
+  getVaultBalanceOnChain, 
+  depositRevenueSponsoredOnChain,
+  depositRevenueWithFeeSponsoredOnChain
 } from './aptos-client';
+import { getAccountFromEncrypted } from './wallet';
 
 const router = express.Router();
 interface AuthRequest extends Request {
@@ -84,24 +87,42 @@ router.post('/:projectId/deposits', async (req: AuthRequest, res: Response) => {
   try {
     const { projectId } = req.params;
     const { amount_usdc_micro, source = 'Manual Deposit' } = req.body;
+    const userId = req.userId;
 
     if (!amount_usdc_micro || amount_usdc_micro <= 0) {
       return res.status(400).json({ error: 'Valid amount is required' });
     }
 
-    // Create payout batch for deposit in database
-    const batch = await db.createDepositBatch(parseInt(projectId), amount_usdc_micro);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
+    const depositor = await db.getUserById(userId);
+    if (!depositor) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!depositor.wallet_private_key_encrypted) {
+      return res.status(400).json({ error: 'Depositor wallet signer is missing' });
+    }
+
+    const depositorSigner = getAccountFromEncrypted(depositor.wallet_private_key_encrypted);
+    const adminAccount = getAdminAccount();
+
+    // Create deposit batch in DB first
+    const batch = await db.createDepositBatch(parseInt(projectId), amount_usdc_micro);
+    const platformFeePercentage = Number(process.env.PLATFORM_FEE_PERCENTAGE || "3");
+    const feeBps = BigInt(platformFeePercentage * 100); // 3% => 300 bps
+    const adminAddress = adminAccount.accountAddress.toString();
     try {
-      // Execute deposit transaction on Aptos blockchain
-      const adminAccount = getAdminAccount();
-      const txHash = await depositRevenueOnChain(
+      const txHash = await depositRevenueWithFeeSponsoredOnChain(
+        depositorSigner,
         adminAccount,
         BigInt(projectId),
-        BigInt(amount_usdc_micro)
+        BigInt(amount_usdc_micro),
+        feeBps,
+        adminAddress
       );
-
-      // Update batch with on-chain transaction info
       await db.updateDepositBatchWithOnChainInfo(batch.id, txHash, BigInt(batch.id));
 
       res.json({
@@ -119,7 +140,6 @@ router.post('/:projectId/deposits', async (req: AuthRequest, res: Response) => {
       });
     } catch (onChainError: any) {
       console.error('On-chain deposit error:', onChainError);
-      // Return error but batch record still exists in database
       res.status(500).json({
         error: 'Failed to execute deposit on-chain',
         details: onChainError.message,
@@ -131,7 +151,6 @@ router.post('/:projectId/deposits', async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 /**
  * GET /api/projects/:projectId/deposits
  * Story 4.1 - View deposit history
