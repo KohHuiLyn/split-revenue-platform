@@ -5,6 +5,7 @@ import {
   Ed25519PrivateKey,
   Ed25519Account,
   PrivateKey,
+  PrivateKeyVariants,
 } from "@aptos-labs/ts-sdk";
 import { configDotenv } from "dotenv";
 
@@ -79,7 +80,7 @@ export async function initializeAptosClient() {
     throw new Error("APTOS_ADMIN_PRIVATE_KEY not set");
   }
 
-  const aip80PrivateKey = PrivateKey.formatPrivateKey(adminPrivateKeyHex, "ed25519");
+  const aip80PrivateKey = PrivateKey.formatPrivateKey(adminPrivateKeyHex, PrivateKeyVariants.Ed25519);
   const privateKey = new Ed25519PrivateKey(aip80PrivateKey);
   adminAccount = new Ed25519Account({ privateKey });
 
