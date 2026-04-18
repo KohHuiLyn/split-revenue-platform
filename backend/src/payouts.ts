@@ -219,7 +219,11 @@ router.post('/:projectId/distribute', async (req: AuthRequest, res: Response) =>
         );
 
         // Update payout record with transaction hash
-        await db.updatePayoutHistoryWithOnChainInfo(payoutRecord.id, BigInt(1), txHash);
+        await db.updatePayoutHistoryWithOnChainInfo(
+          payoutRecord.id,
+          BigInt(payoutRecord.id),
+          txHash
+        );
 
         payouts.push({
           recipientId: collab.collaborator_id,
